@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Office Performance Monitoring and Planning System
 
 Prototype scaffold — React/Vite/TS frontend + Express/TS backend. Built incrementally; see chat history for the full architecture proposal, ERD, and phase plan.
@@ -77,3 +78,6 @@ Other scripts:
 ## Next step
 
 Set up PostgreSQL locally, then we'll add the Prisma schema (users, offices, employees, plans, plan_offices, plan_assignments, performance_metrics, performance_records, reports, audit_logs) and verify the DB connection.
+=======
+# ph-office-performance-system
+>>>>>>> 036f782fbc8e3f4c8eff5226517a0bc28048155e
