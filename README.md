@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Office Performance Monitoring and Planning System
 
 Prototype scaffold — React/Vite/TS frontend + Express/TS backend. Built incrementally; see chat history for the full architecture proposal, ERD, and phase plan.
@@ -50,20 +49,21 @@ curl http://localhost:4000/api/health
 ```
 
 Other scripts:
+
 - `npm run build` — compiles TypeScript to `dist/` (also rewrites `@/` path aliases via `tsc-alias`)
 - `npm start` — runs the compiled build
 - `npm run typecheck` — type-checks without emitting
 
 ### Environment variables (`server/.env`)
 
-| Variable | Purpose | Default |
-|---|---|---|
-| `NODE_ENV` | environment name | `development` |
-| `PORT` | API port | `4000` |
-| `DATABASE_URL` | Postgres connection string | see `.env.example` |
-| `JWT_SECRET` | JWT signing secret — **change this** | dev placeholder |
-| `JWT_EXPIRES_IN` | token lifetime | `8h` |
-| `CORS_ORIGIN` | allowed frontend origin | `http://localhost:5173` |
+| Variable         | Purpose                              | Default                 |
+| ---------------- | ------------------------------------ | ----------------------- |
+| `NODE_ENV`       | environment name                     | `development`           |
+| `PORT`           | API port                             | `4000`                  |
+| `DATABASE_URL`   | Postgres connection string           | see `.env.example`      |
+| `JWT_SECRET`     | JWT signing secret — **change this** | dev placeholder         |
+| `JWT_EXPIRES_IN` | token lifetime                       | `8h`                    |
+| `CORS_ORIGIN`    | allowed frontend origin              | `http://localhost:5173` |
 
 ## Status
 
@@ -78,6 +78,3 @@ Other scripts:
 ## Next step
 
 Set up PostgreSQL locally, then we'll add the Prisma schema (users, offices, employees, plans, plan_offices, plan_assignments, performance_metrics, performance_records, reports, audit_logs) and verify the DB connection.
-=======
-# ph-office-performance-system
->>>>>>> 036f782fbc8e3f4c8eff5226517a0bc28048155e
