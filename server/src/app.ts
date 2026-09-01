@@ -8,6 +8,8 @@ import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
 import { healthRouter } from "@/routes/health.routes";
 import { officeRouter } from "@/routes/office.routes";
 import { employeeRouter } from "@/routes/employee.routes";
+import { planRouter } from "@/routes/plan.routes";
+import { metricRouter } from "@/routes/metric.routes";
 
 export function createApp() {
   const app = express();
@@ -20,10 +22,11 @@ export function createApp() {
   app.use("/api/health", healthRouter);
   app.use("/api/offices", officeRouter);
   app.use("/api/employees", employeeRouter);
+  app.use("/api/plans", planRouter);
+  app.use("/api/metrics", metricRouter);
 
   // Future routers get mounted here as modules are built:
   // app.use("/api/auth", authRouter);
-  // app.use("/api/plans", planRouter);
   // ...
 
   app.use(notFoundHandler);
