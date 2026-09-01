@@ -6,6 +6,8 @@ import morgan from "morgan";
 import { env } from "@/config/env";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
 import { healthRouter } from "@/routes/health.routes";
+import { officeRouter } from "@/routes/office.routes";
+import { employeeRouter } from "@/routes/employee.routes";
 
 export function createApp() {
   const app = express();
@@ -16,11 +18,11 @@ export function createApp() {
   app.use(morgan(env.nodeEnv === "development" ? "dev" : "combined"));
 
   app.use("/api/health", healthRouter);
+  app.use("/api/offices", officeRouter);
+  app.use("/api/employees", employeeRouter);
 
   // Future routers get mounted here as modules are built:
   // app.use("/api/auth", authRouter);
-  // app.use("/api/offices", officeRouter);
-  // app.use("/api/employees", employeeRouter);
   // app.use("/api/plans", planRouter);
   // ...
 

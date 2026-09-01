@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  MAIN_ADMIN   // Main Admin / PMMO
+  OFFICE_ADMIN
+  IT_ADMIN
+  EMPLOYEE
+}
+
+enum PlanStatus {
+  DRAFT
+  ACTIVE
+  ONGOING
+  COMPLETED
+  DELAYED
+  ARCHIVED
+}
+
+enum AssignmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+  CANCELLED
+}
+
+enum ReportType {
+  OFFICE_SUMMARY
+  PLAN_PROGRESS
+  EMPLOYEE_PERFORMANCE
+  CUSTOM
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(EMPLOYEE)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee  Employee?
+  records   PerformanceRecord[] @relation("RecordedBy")
+  reports   Report[]            @relation("GeneratedBy")
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Office {
+  id          String    @id @default(uuid())
+  name        String
+  code        String    @unique
+  description String?
+  archivedAt  DateTime? // soft delete — never hard-delete offices
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employees   Employee[]
+  planOffices PlanOffice[]
+  reports     Report[]
+
+  @@map("offices")
+}
+
+model Employee {
+  id        String    @id @default(uuid())
+  userId    String?   @unique
+  officeId  String
+  firstName String
+  lastName  String
+  position  String?
+  hiredAt   DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user               User?                @relation(fields: [userId], references: [id])
+  office             Office               @relation(fields: [officeId], references: [id])
+  planAssignments    PlanAssignment[]
+  performanceRecords PerformanceRecord[]
+
+  @@index([officeId])
+  @@map("employees")
+}
+
+model Plan {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  periodStart DateTime
+  periodEnd   DateTime
+  status      PlanStatus @default(DRAFT)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  planOffices        PlanOffice[]
+  planAssignments    PlanAssignment[]
+  performanceRecords PerformanceRecord[]
+  reports            Report[]
+
+  @@map("plans")
+}
+
+// Many-to-many: which offices a plan applies to
+model PlanOffice {
+  id       String  @id @default(uuid())
+  planId   String
+  officeId String
+  target   String?
+
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  office Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, officeId])
+  @@map("plan_offices")
+}
+
+// Many-to-many: which employees are assigned to a plan, with tracking fields
+// required by the original spec: due date, status, progress percentage.
+model PlanAssignment {
+  id             String           @id @default(uuid())
+  planId         String
+  employeeId     String
+  responsibility String? // was "taskSummary" — renamed to match the spec's wording
+  dueDate        DateTime?
+  status         AssignmentStatus @default(NOT_STARTED)
+  progressPct    Decimal          @default(0) @db.Decimal(5, 2)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  plan     Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, employeeId])
+  @@map("plan_assignments")
+}
+
+// Metric definitions (e.g. "Task Completion Rate", "Customer Satisfaction")
+model PerformanceMetric {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  unit        String? // e.g. "%", "count", "score(1-5)"
+  weightPct   Decimal   @default(0) @db.Decimal(5, 2) // was Float — Decimal avoids rounding error when weights must sum to 100%
+  archivedAt  DateTime? // soft delete — "disable or archive old metrics"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  records PerformanceRecord[]
+
+  @@map("performance_metrics")
+}
+
+// Actual recorded scores per employee/metric, optionally tied to a plan period
+model PerformanceRecord {
+  id           String   @id @default(uuid())
+  employeeId   String
+  metricId     String
+  planId       String?
+  recordedById String
+  score        Float
+  periodStart  DateTime
+  periodEnd    DateTime
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  employee   Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  metric     PerformanceMetric @relation(fields: [metricId], references: [id])
+  plan       Plan?             @relation(fields: [planId], references: [id])
+  recordedBy User              @relation("RecordedBy", fields: [recordedById], references: [id])
+
+  @@index([employeeId])
+  @@index([metricId])
+  @@map("performance_records")
+}
+
+model Report {
+  id            String     @id @default(uuid())
+  title         String
+  type          ReportType @default(CUSTOM)
+  generatedById String
+  planId        String?
+  officeId      String?
+  content       Json?
+  createdAt     DateTime   @default(now())
+
+  generatedBy User    @relation("GeneratedBy", fields: [generatedById], references: [id])
+  plan        Plan?   @relation(fields: [planId], references: [id])
+  office      Office? @relation(fields: [officeId], references: [id])
+
+  @@map("reports")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String // e.g. "CREATE", "UPDATE", "DELETE", "LOGIN"
+  entity    String // e.g. "Employee", "Plan"
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}

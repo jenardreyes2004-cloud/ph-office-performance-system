@@ -49,21 +49,20 @@ curl http://localhost:4000/api/health
 ```
 
 Other scripts:
-
 - `npm run build` — compiles TypeScript to `dist/` (also rewrites `@/` path aliases via `tsc-alias`)
 - `npm start` — runs the compiled build
 - `npm run typecheck` — type-checks without emitting
 
 ### Environment variables (`server/.env`)
 
-| Variable         | Purpose                              | Default                 |
-| ---------------- | ------------------------------------ | ----------------------- |
-| `NODE_ENV`       | environment name                     | `development`           |
-| `PORT`           | API port                             | `4000`                  |
-| `DATABASE_URL`   | Postgres connection string           | see `.env.example`      |
-| `JWT_SECRET`     | JWT signing secret — **change this** | dev placeholder         |
-| `JWT_EXPIRES_IN` | token lifetime                       | `8h`                    |
-| `CORS_ORIGIN`    | allowed frontend origin              | `http://localhost:5173` |
+| Variable | Purpose | Default |
+|---|---|---|
+| `NODE_ENV` | environment name | `development` |
+| `PORT` | API port | `4000` |
+| `DATABASE_URL` | Postgres connection string | see `.env.example` |
+| `JWT_SECRET` | JWT signing secret — **change this** | dev placeholder |
+| `JWT_EXPIRES_IN` | token lifetime | `8h` |
+| `CORS_ORIGIN` | allowed frontend origin | `http://localhost:5173` |
 
 ## Status
 
