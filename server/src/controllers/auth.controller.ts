@@ -1,6 +1,6 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/prisma/client";
 import { signToken } from "@/lib/jwt";
 import { env } from "@/config/env";
 

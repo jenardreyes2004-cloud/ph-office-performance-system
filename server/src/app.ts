@@ -1,4 +1,4 @@
-import cors from "cors";
+﻿import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -11,7 +11,7 @@ import { officeRouter } from "@/routes/office.routes";
 import { employeeRouter } from "@/routes/employee.routes";
 import { planRouter } from "@/routes/plan.routes";
 import { metricRouter } from "@/routes/metric.routes";
-import { authRouter } from "@/routes/auth.routes.ts";
+import { authRouter } from "@/routes/auth.routes";
 
 export function createApp() {
   const app = express();
