@@ -1,4 +1,4 @@
-import type { PlanStatus } from "@prisma/client";
+import type { PlanStatus } from "@/generated/prisma/client";
 
 import { prisma } from "@/prisma/client";
 import { AppError } from "@/middleware/errorHandler";
@@ -26,7 +26,7 @@ const planDetailInclude = {
     },
     orderBy: [{ createdAt: "asc" as const }],
   },
-} as const;
+};
 
 export const planService = {
   async list(status?: string) {

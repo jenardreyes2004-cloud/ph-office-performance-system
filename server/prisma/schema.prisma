@@ -1,14 +1,15 @@
 generator client {
-  provider = "prisma-client-js"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
-  MAIN_ADMIN   // Main Admin / PMMO
+  MAIN_ADMIN
   OFFICE_ADMIN
   IT_ADMIN
   EMPLOYEE
@@ -38,6 +39,21 @@ enum ReportType {
   CUSTOM
 }
 
+enum MonthlyUpdateStatus {
+  ON_TIME
+  LATE
+  MISSING
+}
+
+enum NotificationType {
+  PLAN_ASSIGNED
+  UPDATE_OVERDUE
+  UPDATE_REMINDER_SENT
+  REPORT_FLAGGED
+  METRIC_UPDATED
+  PERFORMANCE_RECORDED
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -53,6 +69,14 @@ model User {
   reports   Report[]            @relation("GeneratedBy")
   auditLogs AuditLog[]
 
+  // New: who added which employees, who assigned which plan assignments
+  employeesAdded          Employee[]       @relation("EmployeeAddedBy")
+  assignmentsMade         PlanAssignment[] @relation("AssignmentAssignedBy")
+  monthlyUpdatesSubmitted MonthlyUpdate[]  @relation("MonthlyUpdateSubmittedBy")
+
+  notificationsReceived Notification[] @relation("ReceivedNotifications")
+  notificationsSent     Notification[] @relation("SentNotifications")
+
   @@map("users")
 }
 
@@ -61,13 +85,14 @@ model Office {
   name        String
   code        String    @unique
   description String?
-  archivedAt  DateTime? // soft delete — never hard-delete offices
+  archivedAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  employees   Employee[]
-  planOffices PlanOffice[]
-  reports     Report[]
+  employees      Employee[]
+  planOffices    PlanOffice[]
+  reports        Report[]
+  monthlyUpdates MonthlyUpdate[]
 
   @@map("offices")
 }
@@ -84,8 +109,12 @@ model Employee {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  user               User?                @relation(fields: [userId], references: [id])
-  office             Office               @relation(fields: [officeId], references: [id])
+  // New: which Office Admin/User added this employee to the roster
+  addedByUserId String?
+  addedBy       User?   @relation("EmployeeAddedBy", fields: [addedByUserId], references: [id])
+
+  user               User?               @relation(fields: [userId], references: [id])
+  office             Office              @relation(fields: [officeId], references: [id])
   planAssignments    PlanAssignment[]
   performanceRecords PerformanceRecord[]
 
@@ -107,11 +136,11 @@ model Plan {
   planAssignments    PlanAssignment[]
   performanceRecords PerformanceRecord[]
   reports            Report[]
+  monthlyUpdates     MonthlyUpdate[]
 
   @@map("plans")
 }
 
-// Many-to-many: which offices a plan applies to
 model PlanOffice {
   id       String  @id @default(uuid())
   planId   String
@@ -125,18 +154,20 @@ model PlanOffice {
   @@map("plan_offices")
 }
 
-// Many-to-many: which employees are assigned to a plan, with tracking fields
-// required by the original spec: due date, status, progress percentage.
 model PlanAssignment {
   id             String           @id @default(uuid())
   planId         String
   employeeId     String
-  responsibility String? // was "taskSummary" — renamed to match the spec's wording
+  responsibility String?
   dueDate        DateTime?
   status         AssignmentStatus @default(NOT_STARTED)
   progressPct    Decimal          @default(0) @db.Decimal(5, 2)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+
+  // New: which user (Office Admin) made this assignment
+  assignedByUserId String?
+  assignedBy       User?   @relation("AssignmentAssignedBy", fields: [assignedByUserId], references: [id])
 
   plan     Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -145,14 +176,13 @@ model PlanAssignment {
   @@map("plan_assignments")
 }
 
-// Metric definitions (e.g. "Task Completion Rate", "Customer Satisfaction")
 model PerformanceMetric {
   id          String    @id @default(uuid())
   name        String    @unique
   description String?
-  unit        String? // e.g. "%", "count", "score(1-5)"
-  weightPct   Decimal   @default(0) @db.Decimal(5, 2) // was Float — Decimal avoids rounding error when weights must sum to 100%
-  archivedAt  DateTime? // soft delete — "disable or archive old metrics"
+  unit        String?
+  weightPct   Decimal   @default(0) @db.Decimal(5, 2)
+  archivedAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -161,7 +191,6 @@ model PerformanceMetric {
   @@map("performance_metrics")
 }
 
-// Actual recorded scores per employee/metric, optionally tied to a plan period
 model PerformanceRecord {
   id           String   @id @default(uuid())
   employeeId   String
@@ -202,11 +231,52 @@ model Report {
   @@map("reports")
 }
 
+// New: periodic office/plan progress updates (monthly cadence)
+model MonthlyUpdate {
+  id                String              @id @default(uuid())
+  officeId          String
+  planId            String?
+  submittedByUserId String
+  monthStartDate    DateTime
+  monthEndDate      DateTime
+  content           String
+  status            MonthlyUpdateStatus @default(ON_TIME)
+  submittedAt       DateTime?
+  createdAt         DateTime            @default(now())
+
+  office      Office @relation(fields: [officeId], references: [id])
+  plan        Plan?  @relation(fields: [planId], references: [id])
+  submittedBy User   @relation("MonthlyUpdateSubmittedBy", fields: [submittedByUserId], references: [id])
+
+  @@index([officeId])
+  @@map("monthly_updates")
+}
+
+// New: in-app notifications (e.g. admin pings a delayed office)
+model Notification {
+  id              String           @id @default(uuid())
+  recipientId     String
+  senderId        String?
+  type            NotificationType
+  message         String
+  relatedOfficeId String?
+  relatedPlanId   String?
+  relatedReportId String?
+  isRead          Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+
+  recipient User  @relation("ReceivedNotifications", fields: [recipientId], references: [id])
+  sender    User? @relation("SentNotifications", fields: [senderId], references: [id])
+
+  @@index([recipientId])
+  @@map("notifications")
+}
+
 model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
-  action    String // e.g. "CREATE", "UPDATE", "DELETE", "LOGIN"
-  entity    String // e.g. "Employee", "Plan"
+  action    String
+  entity    String
   entityId  String?
   metadata  Json?
   createdAt DateTime @default(now())
