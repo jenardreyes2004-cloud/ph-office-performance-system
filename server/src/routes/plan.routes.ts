@@ -1,20 +1,64 @@
 import { Router } from "express";
 
 import { planController } from "@/controllers/plan.controller";
-// Auth/role middleware isn't built yet — these routes are open for now.
-// TODO once auth exists: requireAuth, requireRole(["MAIN_ADMIN", "OFFICE_ADMIN"]) on write routes.
+import { authenticate } from "@/middleware/authMiddleware";
+import { requireRole } from "@/middleware/roleMiddleware";
 
 export const planRouter = Router();
 
+// All plan routes require authentication.
+planRouter.use(authenticate);
+
+// Authenticated users can view plans.
 planRouter.get("/", planController.list);
+
 planRouter.get("/:id", planController.getById);
-planRouter.post("/", planController.create);
-planRouter.patch("/:id", planController.update);
-planRouter.post("/:id/archive", planController.archive);
 
-planRouter.post("/:id/offices", planController.addOffice);
-planRouter.delete("/:id/offices/:officeId", planController.removeOffice);
+// Only MAIN_ADMIN and OFFICE_ADMIN can modify plans.
+planRouter.post(
+  "/",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.create,
+);
 
-planRouter.post("/:id/assignments", planController.assignEmployee);
-planRouter.patch("/:id/assignments/:employeeId", planController.updateAssignment);
-planRouter.delete("/:id/assignments/:employeeId", planController.removeAssignment);
+planRouter.patch(
+  "/:id",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.update,
+);
+
+planRouter.post(
+  "/:id/archive",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.archive,
+);
+
+planRouter.post(
+  "/:id/offices",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.addOffice,
+);
+
+planRouter.delete(
+  "/:id/offices/:officeId",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.removeOffice,
+);
+
+planRouter.post(
+  "/:id/assignments",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.assignEmployee,
+);
+
+planRouter.patch(
+  "/:id/assignments/:employeeId",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.updateAssignment,
+);
+
+planRouter.delete(
+  "/:id/assignments/:employeeId",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  planController.removeAssignment,
+);

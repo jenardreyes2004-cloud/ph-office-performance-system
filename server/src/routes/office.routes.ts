@@ -1,14 +1,32 @@
 import { Router } from "express";
 
 import { officeController } from "@/controllers/office.controller";
-// Auth/role middleware isn't built yet — these routes are open for now.
-// TODO once auth exists: requireAuth, requireRole(["MAIN_ADMIN"]) on write routes.
+import { authenticate } from "@/middleware/authMiddleware";
+import { requireRole } from "@/middleware/roleMiddleware";
 
 export const officeRouter = Router();
 
+// All office routes require authentication.
+officeRouter.use(authenticate);
+
+// Anyone authenticated can view offices.
 officeRouter.get("/", officeController.list);
+
 officeRouter.get("/:id", officeController.getById);
-officeRouter.post("/", officeController.create);
-officeRouter.patch("/:id", officeController.update);
-officeRouter.post("/:id/archive", officeController.archive);
-officeRouter.post("/:id/unarchive", officeController.unarchive);
+
+// Only MAIN_ADMIN can modify offices.
+officeRouter.post("/", requireRole("MAIN_ADMIN"), officeController.create);
+
+officeRouter.patch("/:id", requireRole("MAIN_ADMIN"), officeController.update);
+
+officeRouter.post(
+  "/:id/archive",
+  requireRole("MAIN_ADMIN"),
+  officeController.archive,
+);
+
+officeRouter.post(
+  "/:id/unarchive",
+  requireRole("MAIN_ADMIN"),
+  officeController.unarchive,
+);

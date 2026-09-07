@@ -1,5 +1,11 @@
+import { PerformanceRecordsPage } from "@/pages/performance/PerformanceRecordsPage";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  BrowserRouter as Router,
+  Routes,
+} from "react-router-dom";
 
 import { AuthProvider } from "@/features/auth/AuthContext";
 import { AppLayout } from "@/layouts/AppLayout";
@@ -31,6 +37,10 @@ function App() {
                 <Route path="/plans" element={<PlansPage />} />
                 <Route path="/plans/:id" element={<PlanDetailPage />} />
                 <Route path="/performance" element={<PerformancePage />} />
+                <Route
+                  path="/performance/records"
+                  element={<PerformanceRecordsPage />}
+                />
                 <Route path="/reports" element={<ReportsPage />} />
               </Route>
             </Route>

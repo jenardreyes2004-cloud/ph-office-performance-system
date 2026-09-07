@@ -1,18 +1,13 @@
 export interface PerformanceRecord {
   id: string;
-
   employeeId: string;
   metricId: string;
   planId: string | null;
   recordedById: string;
-
   score: number;
-
   periodStart: string;
   periodEnd: string;
-
   notes: string | null;
-
   createdAt: string;
   updatedAt: string;
 

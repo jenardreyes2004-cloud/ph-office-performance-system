@@ -12,6 +12,7 @@ import { employeeRouter } from "@/routes/employee.routes";
 import { planRouter } from "@/routes/plan.routes";
 import { metricRouter } from "@/routes/metric.routes";
 import { authRouter } from "@/routes/auth.routes";
+import { performanceRecordRouter } from "@/routes/performanceRecord.routes";
 
 export function createApp() {
   const app = express();
@@ -28,6 +29,7 @@ export function createApp() {
   app.use("/api/employees", employeeRouter);
   app.use("/api/plans", planRouter);
   app.use("/api/metrics", metricRouter);
+  app.use("/api/performance-records", performanceRecordRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

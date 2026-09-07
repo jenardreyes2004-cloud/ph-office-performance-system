@@ -2,24 +2,18 @@ import axios from "axios";
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:4000/api",
+  withCredentials: true,
 });
 
-// Attach the JWT (once auth exists) to every request.
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("opmps_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// On 401, clear the stale token so the app falls back to the login page.
+// On 401, let the authentication context handle the logout/session state.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem("opmps_token");
+      // The JWT is stored in an HTTP-only cookie,
+      // so we intentionally do not try to remove it from localStorage.
     }
+
     return Promise.reject(error);
-  }
+  },
 );

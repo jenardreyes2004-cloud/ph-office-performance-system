@@ -1,14 +1,32 @@
 import { Router } from "express";
 
 import { metricController } from "@/controllers/metric.controller";
-// Auth/role middleware isn't built yet — these routes are open for now.
-// TODO once auth exists: requireAuth, requireRole(["MAIN_ADMIN"]) on write routes.
+import { authenticate } from "@/middleware/authMiddleware";
+import { requireRole } from "@/middleware/roleMiddleware";
 
 export const metricRouter = Router();
 
+// All metric routes require authentication.
+metricRouter.use(authenticate);
+
+// Authenticated users can view metrics.
 metricRouter.get("/", metricController.list);
+
 metricRouter.get("/:id", metricController.getById);
-metricRouter.post("/", metricController.create);
-metricRouter.patch("/:id", metricController.update);
-metricRouter.post("/:id/archive", metricController.archive);
-metricRouter.post("/:id/unarchive", metricController.unarchive);
+
+// Only MAIN_ADMIN can modify performance metrics.
+metricRouter.post("/", requireRole("MAIN_ADMIN"), metricController.create);
+
+metricRouter.patch("/:id", requireRole("MAIN_ADMIN"), metricController.update);
+
+metricRouter.post(
+  "/:id/archive",
+  requireRole("MAIN_ADMIN"),
+  metricController.archive,
+);
+
+metricRouter.post(
+  "/:id/unarchive",
+  requireRole("MAIN_ADMIN"),
+  metricController.unarchive,
+);
