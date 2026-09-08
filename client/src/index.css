@@ -79,3 +79,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Scorecard print view: hide app chrome, let the report fill the page. */
+@media print {
+  aside,
+  .no-print {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .print-container {
+    gap: 0.5rem !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+
+  body {
+    background: white !important;
+  }
+}

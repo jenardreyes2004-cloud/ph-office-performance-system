@@ -16,6 +16,7 @@ import { OfficesPage } from "@/pages/offices/OfficesPage";
 import { PerformancePage } from "@/pages/performance/PerformancePage";
 import { PlanDetailPage } from "@/pages/plans/PlanDetailPage";
 import { PlansPage } from "@/pages/plans/PlansPage";
+import { OfficeScorecardPage } from "@/pages/reports/OfficeScorecardPage";
 import { ReportsPage } from "@/pages/reports/ReportsPage";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 
@@ -42,6 +43,10 @@ function App() {
                   element={<PerformanceRecordsPage />}
                 />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route
+                  path="/reports/office-scorecards/:id"
+                  element={<OfficeScorecardPage />}
+                />
               </Route>
             </Route>
 

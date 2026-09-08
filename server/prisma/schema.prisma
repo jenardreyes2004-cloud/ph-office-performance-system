@@ -54,6 +54,27 @@ enum NotificationType {
   PERFORMANCE_RECORDED
 }
 
+// New: office-level Balanced Scorecard (PhilHealth SPMS format)
+enum ScorecardPerspective {
+  DELIGHTED_CLIENTS
+  EXCELLENT_PROCESS
+  SUSTAINABLE_FUND
+  STRONG_FOUNDATION
+}
+
+enum ScorecardGrade {
+  OUTSTANDING
+  VERY_SATISFACTORY
+  SATISFACTORY
+  UNSATISFACTORY
+  POOR
+}
+
+enum OfficeScorecardStatus {
+  DRAFT
+  FINALIZED
+}
+
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -77,6 +98,8 @@ model User {
   notificationsReceived Notification[] @relation("ReceivedNotifications")
   notificationsSent     Notification[] @relation("SentNotifications")
 
+  officeScorecardsFinalized OfficeScorecard[] @relation("ScorecardFinalizedBy")
+
   @@map("users")
 }
 
@@ -89,10 +112,11 @@ model Office {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  employees      Employee[]
-  planOffices    PlanOffice[]
-  reports        Report[]
-  monthlyUpdates MonthlyUpdate[]
+  employees        Employee[]
+  planOffices      PlanOffice[]
+  reports          Report[]
+  monthlyUpdates   MonthlyUpdate[]
+  officeScorecards OfficeScorecard[]
 
   @@map("offices")
 }
@@ -270,6 +294,118 @@ model Notification {
 
   @@index([recipientId])
   @@map("notifications")
+}
+
+// New: annual (or custom) cycle a scorecard is filled out for, e.g. "CY 2025"
+model ScorecardPeriod {
+  id        String   @id @default(uuid())
+  label     String // "January 2025 to December 2025"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  officeScorecards OfficeScorecard[]
+
+  @@map("scorecard_periods")
+}
+
+// New: one scorecard "document" per office per period — this is the printable report
+model OfficeScorecard {
+  id       String                 @id @default(uuid())
+  officeId String
+  periodId String
+  status   OfficeScorecardStatus  @default(DRAFT)
+
+  // Sign-off block (mirrors the bottom of the printed form)
+  raterName                     String?
+  raterTitle                    String?
+  nextHigherSupervisorName      String?
+  nextHigherSupervisorTitle     String?
+
+  // Rollup snapshot, computed at finalize time (see scorecard.service.ts)
+  totalWeight  Decimal?        @db.Decimal(6, 2)
+  totalScore   Decimal?        @db.Decimal(6, 2)
+  officeRating ScorecardGrade?
+  finalizedAt  DateTime?
+
+  finalizedByUserId String?
+  finalizedBy       User?   @relation("ScorecardFinalizedBy", fields: [finalizedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  office  Office          @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  period  ScorecardPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  entries ScorecardEntry[]
+
+  @@unique([officeId, periodId])
+  @@index([periodId])
+  @@map("office_scorecards")
+}
+
+// New: one KPI line item on a scorecard ("Strategic Objective" row)
+model ScorecardEntry {
+  id                 String               @id @default(uuid())
+  officeScorecardId  String
+  perspective        ScorecardPerspective
+  sortOrder          Int                  @default(0)
+  strategicObjective String
+  responsibleUnit    String?
+  measure            String
+  performanceTarget  String
+  weightPct          Decimal              @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  officeScorecard OfficeScorecard  @relation(fields: [officeScorecardId], references: [id], onDelete: Cascade)
+  bands           ScorecardBand[]
+  result          ScorecardResult?
+
+  @@index([officeScorecardId])
+  @@map("scorecard_entries")
+}
+
+// New: one grading band ("Possible Scenario") for an entry, e.g. "90-100% = O"
+model ScorecardBand {
+  id      String         @id @default(uuid())
+  entryId String
+  grade   ScorecardGrade
+
+  // Optional numeric range, used to auto-suggest a grade when the result is a clean %.
+  // Left null for bands defined by dates/absolute counts instead of percentages.
+  minPct Decimal? @db.Decimal(6, 2)
+  maxPct Decimal? @db.Decimal(6, 2)
+
+  // Verbatim wording from the form, always shown as-is in the report/print view.
+  rawLabel String
+
+  entry ScorecardEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
+  @@map("scorecard_bands")
+}
+
+// New: the actual accomplishment + resulting grade/score for one entry
+model ScorecardResult {
+  id      String @id @default(uuid())
+  entryId String @unique
+
+  rawResult    String // as reported, e.g. "36.6% (1.48M)"
+  resultPct    Decimal? @db.Decimal(6, 2) // numeric % of target, if applicable
+  grade        ScorecardGrade?
+  isAutoGraded Boolean         @default(false)
+
+  initialScore Decimal? @db.Decimal(6, 2)
+  finalScore   Decimal? @db.Decimal(6, 2)
+  notes        String?
+
+  updatedAt DateTime @updatedAt
+
+  entry ScorecardEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@map("scorecard_results")
 }
 
 model AuditLog {
