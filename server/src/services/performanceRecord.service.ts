@@ -15,7 +15,7 @@ export const performanceRecordService = {
         employee: true,
         metric: true,
         plan: true,
-        recordedBy: true,
+        recordedBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
   },
@@ -27,7 +27,7 @@ export const performanceRecordService = {
         employee: true,
         metric: true,
         plan: true,
-        recordedBy: true,
+        recordedBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
 
@@ -96,7 +96,7 @@ export const performanceRecordService = {
         employee: true,
         metric: true,
         plan: true,
-        recordedBy: true,
+        recordedBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
   },
@@ -150,7 +150,7 @@ export const performanceRecordService = {
         employee: true,
         metric: true,
         plan: true,
-        recordedBy: true,
+        recordedBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
   },

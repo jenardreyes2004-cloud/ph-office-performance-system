@@ -13,6 +13,8 @@ import { planRouter } from "@/routes/plan.routes";
 import { metricRouter } from "@/routes/metric.routes";
 import { authRouter } from "@/routes/auth.routes";
 import { performanceRecordRouter } from "@/routes/performanceRecord.routes";
+import { monthlyUpdateRouter } from "@/routes/monthlyUpdate.routes";
+import { notificationRouter } from "@/routes/notification.routes";
 
 export function createApp() {
   const app = express();
@@ -30,6 +32,8 @@ export function createApp() {
   app.use("/api/plans", planRouter);
   app.use("/api/metrics", metricRouter);
   app.use("/api/performance-records", performanceRecordRouter);
+  app.use("/api/monthly-updates", monthlyUpdateRouter);
+  app.use("/api/notifications", notificationRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

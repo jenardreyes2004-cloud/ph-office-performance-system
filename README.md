@@ -69,11 +69,15 @@ Other scripts:
 - [x] Root project structure
 - [x] Frontend: Vite + React + TS + Tailwind + shadcn/ui — builds and runs
 - [x] Backend: Express + TS, layered structure, health check route — builds and runs
-- [ ] PostgreSQL + Prisma schema (next step)
-- [ ] Authentication + RBAC
-- [ ] Core CRUD modules (offices, employees, plans, metrics, assignments)
-- [ ] Dashboards & reports
+- [x] PostgreSQL + Prisma schema (v7, driver-adapter based via `@prisma/adapter-pg`) — migrated
+- [x] Authentication + RBAC — JWT in httpOnly cookie, `authenticate` + `requireRole` applied consistently across all mutating routes
+- [x] Core CRUD modules: offices, employees, plans (+ plan-office links, plan assignments), metrics, performance records
+- [x] Monthly updates (office/plan progress submissions)
+- [ ] Notifications (DB table + model exist, no API yet)
+- [ ] Reports (DB table + model exist, no API yet — natural next step once the above have real data)
+- [ ] Audit log writes (table exists, not yet wired into mutating actions)
+- [ ] Frontend integration (auth screens + API calls — still just the initial scaffold)
 
 ## Next step
 
-Set up PostgreSQL locally, then we'll add the Prisma schema (users, offices, employees, plans, plan_offices, plan_assignments, performance_metrics, performance_records, reports, audit_logs) and verify the DB connection.
+Build the `Notification` module (list own notifications, mark read, admin-create) following the same schema → service → controller → route pattern as `monthlyUpdate`. Then `Reports`, then an audit-logging pass across existing mutations, then start wiring the frontend.
