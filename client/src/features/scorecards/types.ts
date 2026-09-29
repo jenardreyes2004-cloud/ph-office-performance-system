@@ -26,6 +26,7 @@ export interface OfficeForPeriod {
   officeId: string;
   officeName: string;
   officeCode: string;
+  employeeCount: number;
   scorecard: {
     id: string;
     status: OfficeScorecardStatus;

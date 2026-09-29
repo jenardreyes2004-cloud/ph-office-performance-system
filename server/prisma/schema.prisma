@@ -112,12 +112,27 @@ model Office {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // Organizational hierarchy (see seedOrganizationStructure.ts). Null means
+  // the office sits at the top of the tree — currently only the Office of the
+  // Vice President. Self-relation, so any office can report to any other.
+  parentId String?
+  parent   Office?  @relation("OfficeHierarchy", fields: [parentId], references: [id])
+  children Office[] @relation("OfficeHierarchy")
+
+  // Sub-unit vs. head office. Head offices (the OVP and the three NCR
+  // regional offices) run a Balanced Scorecard; their sub-divisions and units
+  // are tracked for structure, plans, and employees but are not scored
+  // separately. Never derived from the tree — set explicitly, because whether
+  // a unit is scored is a policy decision, not a structural fact.
+  isHeadOffice Boolean @default(false)
+
   employees        Employee[]
   planOffices      PlanOffice[]
   reports          Report[]
   monthlyUpdates   MonthlyUpdate[]
   officeScorecards OfficeScorecard[]
 
+  @@index([parentId])
   @@map("offices")
 }
 

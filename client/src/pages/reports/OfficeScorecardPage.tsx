@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAuth } from "@/features/auth/AuthContext";
+import { usePermission } from "@/features/auth/usePermission";
 import {
   GRADE_BADGE_VARIANT,
   GRADE_SHORT,
@@ -28,14 +28,14 @@ import type { ScorecardEntry, ScorecardPerspective } from "@/features/scorecards
 
 export function OfficeScorecardPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
   const { data: scorecard, isLoading, isError } = useOfficeScorecard(id);
   const finalize = useFinalizeOfficeScorecard(id ?? "");
+  const { can } = usePermission();
 
-  const canEdit =
-    scorecard?.status === "DRAFT" &&
-    (user?.role === "MAIN_ADMIN" || user?.role === "OFFICE_ADMIN");
-  const canFinalize = scorecard?.status === "DRAFT" && user?.role === "MAIN_ADMIN";
+  // A finalized scorecard is locked for everyone, so a draft is also the
+  // only state where any of these controls can apply.
+  const canEdit = scorecard?.status === "DRAFT" && can("scorecards.manage");
+  const canFinalize = scorecard?.status === "DRAFT" && can("scorecards.finalize");
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading report…</p>;
@@ -124,7 +124,7 @@ export function OfficeScorecardPage() {
                     <TableHead>Result</TableHead>
                     <TableHead>Grade</TableHead>
                     <TableHead className="text-right">Score</TableHead>
-                    <TableHead className="text-right no-print">Actions</TableHead>
+                    {canEdit && <TableHead className="text-right no-print">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -166,9 +166,11 @@ export function OfficeScorecardPage() {
                         <TableCell className="text-right font-medium">
                           {score !== null ? score.toFixed(2) : "—"}
                         </TableCell>
-                        <TableCell className="text-right no-print">
-                          {canEdit && <SubmitResultDialog entry={entry} />}
-                        </TableCell>
+                        {canEdit && (
+                          <TableCell className="text-right no-print">
+                            <SubmitResultDialog entry={entry} />
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}

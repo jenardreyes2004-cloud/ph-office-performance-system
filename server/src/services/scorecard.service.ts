@@ -1,6 +1,6 @@
 import { prisma } from "@/prisma/client";
 import { AppError } from "@/middleware/errorHandler";
-import type { ScorecardGrade } from "@/generated/prisma/client";
+import type { Prisma, ScorecardGrade } from "@/generated/prisma/client";
 
 import type {
   CreateScorecardPeriodInput,
@@ -64,17 +64,21 @@ function autoSuggestGrade(
   return matches.length === 1 ? matches[0].grade : null;
 }
 
+// `satisfies` (not `as const` and not a type annotation) so these keep their
+// literal types: `as const` makes the `orderBy` arrays readonly tuples that
+// Prisma's input types reject, and a plain annotation widens `true` to
+// `boolean`, which erases nested relations from the result payload.
 const ENTRY_INCLUDE = {
   bands: { orderBy: { grade: "asc" } },
   result: true,
-} as const;
+} satisfies Prisma.ScorecardEntryInclude;
 
 const OFFICE_SCORECARD_INCLUDE = {
   office: true,
   period: true,
   finalizedBy: { select: { id: true, name: true, email: true, role: true } },
   entries: { orderBy: [{ perspective: "asc" }, { sortOrder: "asc" }], include: ENTRY_INCLUDE },
-} as const;
+} satisfies Prisma.OfficeScorecardInclude;
 
 export const scorecardPeriodService = {
   async list() {
@@ -96,13 +100,18 @@ export const scorecardPeriodService = {
 
   // Every office, alongside its scorecard for this period if one exists yet.
   // This is the "click into an office" list view.
+  //
+  // Only head offices appear: the sub-divisions and units under them are
+  // tracked for structure, plans, and employees, but the SPMS scorecard is
+  // filled out at the head-office level (see the isHeadOffice column).
   async listOfficesForPeriod(periodId: string) {
     await this.getById(periodId);
 
     const offices = await prisma.office.findMany({
-      where: { archivedAt: null },
+      where: { archivedAt: null, isHeadOffice: true },
       orderBy: { name: "asc" },
       include: {
+        _count: { select: { employees: true } },
         officeScorecards: {
           where: { periodId },
           select: {
@@ -121,8 +130,35 @@ export const scorecardPeriodService = {
       officeId: o.id,
       officeName: o.name,
       officeCode: o.code,
+      employeeCount: o._count.employees,
       scorecard: o.officeScorecards[0] ?? null,
     }));
+  },
+
+  // Ancestor chain, root first. The scorecard sign-off block prints the
+  // rater's next higher supervisor, so the report view needs to know where
+  // this office sits in the structure.
+  async getPath(id: string) {
+    const office = await prisma.office.findUnique({
+      where: { id },
+      select: { id: true, name: true, code: true, parentId: true },
+    });
+    if (!office) throw new AppError("Office not found", 404);
+
+    const chain = [office];
+    let current = office.parentId;
+    for (let i = 0; i < 50 && current; i++) {
+      const parent: { id: string; name: string; code: string; parentId: string | null } | null =
+        await prisma.office.findUnique({
+          where: { id: current },
+          select: { id: true, name: true, code: true, parentId: true },
+        });
+      if (!parent) break;
+      chain.push(parent);
+      current = parent.parentId;
+    }
+
+    return chain.reverse();
   },
 };
 

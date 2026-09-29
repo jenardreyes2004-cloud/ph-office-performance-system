@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAuth } from "@/features/auth/AuthContext";
+import { usePermission } from "@/features/auth/usePermission";
 import { GRADE_BADGE_VARIANT, GRADE_SHORT, toNumber } from "@/features/scorecards/gradeMeta";
 import { CreatePeriodDialog } from "@/features/scorecards/CreatePeriodDialog";
 import {
@@ -21,10 +21,10 @@ import {
 } from "@/features/scorecards/hooks";
 
 export function ReportsPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { data: periods, isLoading: periodsLoading } = useScorecardPeriods();
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | undefined>(undefined);
+  const { can } = usePermission();
 
   // Derive the active period during render instead of syncing it via an
   // effect: default to the first period until the user picks one explicitly.
@@ -33,8 +33,10 @@ export function ReportsPage() {
   const { data: offices, isLoading: officesLoading } = useOfficesForPeriod(periodId);
   const startScorecard = useStartOfficeScorecard(periodId ?? "");
 
-  const canManagePeriods = user?.role === "MAIN_ADMIN";
-  const canStartScorecard = user?.role === "MAIN_ADMIN" || user?.role === "OFFICE_ADMIN";
+  // Opening a reporting cycle is a Main Admin job; an Office Admin fills in a
+  // scorecard that already exists but cannot start a new one.
+  const canManagePeriods = can("scorecardPeriods.manage");
+  const canStartScorecard = can("scorecards.manage");
 
   return (
     <div className="flex flex-col gap-4">

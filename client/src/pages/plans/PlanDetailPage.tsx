@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PlaceholderPage } from "@/components/PlaceholderPage";
+import { usePermission } from "@/features/auth/usePermission";
 import { AddOfficeDialog } from "@/features/plans/AddOfficeDialog";
 import { AssignEmployeeDialog } from "@/features/plans/AssignEmployeeDialog";
 import { AssignmentRow } from "@/features/plans/AssignmentRow";
@@ -27,6 +28,11 @@ export function PlanDetailPage() {
   const updatePlan = useUpdatePlan(id ?? "");
   const archivePlan = useArchivePlan();
   const removeOffice = useRemovePlanOffice(id ?? "");
+  const { can } = usePermission();
+
+  // Employees may open a plan to see their assignment, but every control
+  // that would change it is withheld rather than disabled.
+  const canManage = can("plans.manage");
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading plan…</p>;
@@ -53,39 +59,43 @@ export function PlanDetailPage() {
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">{plan.description}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Select
-            value={plan.status}
-            onValueChange={(status) => updatePlan.mutate({ status: status as PlanStatus })}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PLAN_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {plan.status !== "ARCHIVED" && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={archivePlan.isPending}
-              onClick={() => archivePlan.mutate(plan.id)}
+        {canManage && (
+          <div className="flex items-center gap-2">
+            <Select
+              value={plan.status}
+              onValueChange={(status) => updatePlan.mutate({ status: status as PlanStatus })}
             >
-              Archive
-            </Button>
-          )}
-        </div>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PLAN_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {plan.status !== "ARCHIVED" && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={archivePlan.isPending}
+                onClick={() => archivePlan.mutate(plan.id)}
+              >
+                Archive
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Assigned offices</CardTitle>
-          <AddOfficeDialog planId={plan.id} alreadyAssigned={plan.planOffices} />
+          {canManage && (
+            <AddOfficeDialog planId={plan.id} alreadyAssigned={plan.planOffices} />
+          )}
         </CardHeader>
         <CardContent>
           {plan.planOffices.length === 0 ? (
@@ -98,7 +108,7 @@ export function PlanDetailPage() {
                 <TableRow>
                   <TableHead>Office</TableHead>
                   <TableHead>Target</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canManage && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -108,16 +118,18 @@ export function PlanDetailPage() {
                       {po.office.name} ({po.office.code})
                     </TableCell>
                     <TableCell>{po.target ?? "—"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={removeOffice.isPending}
-                        onClick={() => removeOffice.mutate(po.officeId)}
-                      >
-                        Unassign
-                      </Button>
-                    </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={removeOffice.isPending}
+                          onClick={() => removeOffice.mutate(po.officeId)}
+                        >
+                          Unassign
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -129,11 +141,13 @@ export function PlanDetailPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Employee assignments</CardTitle>
-          <AssignEmployeeDialog
-            planId={plan.id}
-            planOffices={plan.planOffices}
-            alreadyAssigned={plan.planAssignments}
-          />
+          {canManage && (
+            <AssignEmployeeDialog
+              planId={plan.id}
+              planOffices={plan.planOffices}
+              alreadyAssigned={plan.planAssignments}
+            />
+          )}
         </CardHeader>
         <CardContent>
           {plan.planAssignments.length === 0 ? (
@@ -149,12 +163,17 @@ export function PlanDetailPage() {
                   <TableHead>Due</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Progress</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canManage && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {plan.planAssignments.map((assignment) => (
-                  <AssignmentRow key={assignment.id} planId={plan.id} assignment={assignment} />
+                  <AssignmentRow
+                    key={assignment.id}
+                    planId={plan.id}
+                    assignment={assignment}
+                    canManage={canManage}
+                  />
                 ))}
               </TableBody>
             </Table>

@@ -12,6 +12,9 @@ officeRouter.use(authenticate);
 // Anyone authenticated can view offices.
 officeRouter.get("/", officeController.list);
 
+// Declared before "/:id" so "tree" is not swallowed as an office id.
+officeRouter.get("/tree", officeController.tree);
+
 officeRouter.get("/:id", officeController.getById);
 
 // Only MAIN_ADMIN can modify offices.

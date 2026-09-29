@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePermission } from "@/features/auth/usePermission";
 import { CreatePlanDialog } from "@/features/plans/CreatePlanDialog";
 import { PlanStatusBadge } from "@/features/plans/StatusBadge";
 import { usePlans } from "@/features/plans/hooks";
@@ -16,6 +17,11 @@ function formatDate(value: string) {
 
 export function PlansPage() {
   const { data: plans, isLoading, isError } = usePlans();
+  const { can } = usePermission();
+
+  // Employees can read plans (their own tasks live inside them) but must not
+  // be offered the "Create plan" control.
+  const canManage = can("plans.manage");
 
   return (
     <div className="flex flex-col gap-4">
@@ -23,10 +29,12 @@ export function PlansPage() {
         <div>
           <h1 className="text-2xl font-semibold">Plans</h1>
           <p className="text-sm text-muted-foreground">
-            Create and manage organizational plans, office assignments, and employee tasks.
+            {canManage
+              ? "Create and manage organizational plans, office assignments, and employee tasks."
+              : "Plans you are assigned to, and the offices they cover."}
           </p>
         </div>
-        <CreatePlanDialog />
+        {canManage && <CreatePlanDialog />}
       </div>
 
       <Card>
@@ -39,7 +47,9 @@ export function PlansPage() {
           )}
           {plans && plans.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No plans yet. Create the first one above.
+              {canManage
+                ? "No plans yet. Create the first one above."
+                : "No plans have been published yet."}
             </p>
           )}
           {plans && plans.length > 0 && (

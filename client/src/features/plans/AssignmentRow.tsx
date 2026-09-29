@@ -24,7 +24,14 @@ function toLabel(status: string) {
     .join(" ");
 }
 
-export function AssignmentRow({ planId, assignment }: { planId: string; assignment: PlanAssignment }) {
+interface AssignmentRowProps {
+  planId: string;
+  assignment: PlanAssignment;
+  /** When false, status and progress render as plain text. */
+  canManage: boolean;
+}
+
+export function AssignmentRow({ planId, assignment, canManage }: AssignmentRowProps) {
   const [progressInput, setProgressInput] = useState(String(assignment.progressPct));
   const updateAssignment = useUpdateAssignment(planId);
   const removeAssignment = useRemoveAssignment(planId);
@@ -46,51 +53,61 @@ export function AssignmentRow({ planId, assignment }: { planId: string; assignme
         {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : "—"}
       </TableCell>
       <TableCell>
-        <Select
-          value={assignment.status}
-          onValueChange={(status) =>
-            updateAssignment.mutate({
-              employeeId: assignment.employeeId,
-              status: status as AssignmentStatus,
-            })
-          }
-        >
-          <SelectTrigger className="h-8 w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ASSIGNMENT_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {toLabel(status)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {canManage ? (
+          <Select
+            value={assignment.status}
+            onValueChange={(status) =>
+              updateAssignment.mutate({
+                employeeId: assignment.employeeId,
+                status: status as AssignmentStatus,
+              })
+            }
+          >
+            <SelectTrigger className="h-8 w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ASSIGNMENT_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {toLabel(status)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          toLabel(assignment.status)
+        )}
       </TableCell>
       <TableCell>
-        <div className="flex items-center gap-1">
-          <Input
-            className="h-8 w-16"
-            type="number"
-            min={0}
-            max={100}
-            value={progressInput}
-            onChange={(e) => setProgressInput(e.target.value)}
-            onBlur={commitProgress}
-          />
-          <span className="text-xs text-muted-foreground">%</span>
-        </div>
+        {canManage ? (
+          <div className="flex items-center gap-1">
+            <Input
+              className="h-8 w-16"
+              type="number"
+              min={0}
+              max={100}
+              value={progressInput}
+              onChange={(e) => setProgressInput(e.target.value)}
+              onBlur={commitProgress}
+            />
+            <span className="text-xs text-muted-foreground">%</span>
+          </div>
+        ) : (
+          `${Number(assignment.progressPct)}%`
+        )}
       </TableCell>
-      <TableCell className="text-right">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={removeAssignment.isPending}
-          onClick={() => removeAssignment.mutate(assignment.employeeId)}
-        >
-          Remove
-        </Button>
-      </TableCell>
+      {canManage && (
+        <TableCell className="text-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={removeAssignment.isPending}
+            onClick={() => removeAssignment.mutate(assignment.employeeId)}
+          >
+            Remove
+          </Button>
+        </TableCell>
+      )}
     </TableRow>
   );
 }

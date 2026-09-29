@@ -10,6 +10,14 @@ export const officeController = {
     res.json(offices);
   },
 
+  // Full hierarchy, optionally annotated with scorecards for one period:
+  // GET /api/offices/tree?periodId=<uuid>
+  async tree(req: Request, res: Response) {
+    const periodId = typeof req.query.periodId === "string" ? req.query.periodId : undefined;
+    const tree = await officeService.tree(periodId);
+    res.json(tree);
+  },
+
   async getById(req: Request<{ id: string }>, res: Response) {
     const office = await officeService.getById(req.params.id);
     res.json(office);

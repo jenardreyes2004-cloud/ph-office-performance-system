@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePermission } from "@/features/auth/usePermission";
 import { CreateMetricDialog } from "@/features/metrics/CreateMetricDialog";
 import { useArchiveMetric, useMetrics, useUnarchiveMetric } from "@/features/metrics/hooks";
 
@@ -9,6 +10,11 @@ export function PerformancePage() {
   const { data, isLoading, isError } = useMetrics();
   const archiveMetric = useArchiveMetric();
   const unarchiveMetric = useUnarchiveMetric();
+  const { can } = usePermission();
+
+  // Metric definitions are configuration — Main Admin only. The archive
+  // controls disappear entirely for anyone else.
+  const canManage = can("metrics.manage");
 
   const remainingWeight = data ? Math.max(0, 100 - data.totalWeight) : 100;
 
@@ -18,11 +24,12 @@ export function PerformancePage() {
         <div>
           <h1 className="text-2xl font-semibold">Performance Metrics</h1>
           <p className="text-sm text-muted-foreground">
-            Define the metrics used to score employee performance. Active metric weights must sum
-            to 100% or less.
+            {canManage
+              ? "Define the metrics used to score employee performance. Active metric weights must sum to 100% or less."
+              : "The metrics used to score employee performance."}
           </p>
         </div>
-        <CreateMetricDialog remainingWeight={remainingWeight} />
+        {canManage && <CreateMetricDialog remainingWeight={remainingWeight} />}
       </div>
 
       <Card>
@@ -53,7 +60,7 @@ export function PerformancePage() {
                     <TableHead>Unit</TableHead>
                     <TableHead>Weight</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    {canManage && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -67,27 +74,29 @@ export function PerformancePage() {
                           {metric.archivedAt ? "Archived" : "Active"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        {metric.archivedAt ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={unarchiveMetric.isPending}
-                            onClick={() => unarchiveMetric.mutate(metric.id)}
-                          >
-                            Unarchive
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={archiveMetric.isPending}
-                            onClick={() => archiveMetric.mutate(metric.id)}
-                          >
-                            Archive
-                          </Button>
-                        )}
-                      </TableCell>
+                      {canManage && (
+                        <TableCell className="text-right">
+                          {metric.archivedAt ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={unarchiveMetric.isPending}
+                              onClick={() => unarchiveMetric.mutate(metric.id)}
+                            >
+                              Unarchive
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={archiveMetric.isPending}
+                              onClick={() => archiveMetric.mutate(metric.id)}
+                            >
+                              Archive
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

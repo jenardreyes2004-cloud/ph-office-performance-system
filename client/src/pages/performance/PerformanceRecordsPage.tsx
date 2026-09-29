@@ -10,10 +10,15 @@ import {
 
 import { Card, CardContent } from "@/components/ui/card";
 
+import { usePermission } from "@/features/auth/usePermission";
 import { usePerformanceRecords } from "@/features/performanceRecords/hooks";
 
 export function PerformanceRecordsPage() {
   const { data, isLoading, isError } = usePerformanceRecords();
+  const { can } = usePermission();
+
+  // Only a Main Admin may enter scores. Everyone else reads the list only.
+  const canRecord = can("performance.manage");
 
   return (
     <div className="flex flex-col gap-4">
@@ -22,11 +27,13 @@ export function PerformanceRecordsPage() {
           <h1 className="text-2xl font-semibold">Performance Records</h1>
 
           <p className="text-sm text-muted-foreground">
-            View employee performance scores and records.
+            {canRecord
+              ? "View and record employee performance scores."
+              : "View employee performance scores and records."}
           </p>
         </div>
 
-        <CreatePerformanceRecordDialog />
+        {canRecord && <CreatePerformanceRecordDialog />}
       </div>
       <Card>
         <CardContent className="pt-6">

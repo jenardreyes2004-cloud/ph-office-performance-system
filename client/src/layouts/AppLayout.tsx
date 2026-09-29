@@ -1,20 +1,20 @@
 import { NavLink, Outlet } from "react-router-dom";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
+import { usePermission } from "@/features/auth/usePermission";
+import { NAV_ITEMS } from "@/lib/navigation";
+import { ROLE_LABELS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
-
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/offices", label: "Offices" },
-  { to: "/employees", label: "Employees" },
-  { to: "/plans", label: "Plans" },
-  { to: "/performance", label: "Performance" },
-  { to: "/reports", label: "Reports" },
-];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const { canAny } = usePermission();
+
+  // Filter the menu rather than disabling entries: a section the user can
+  // never open is just noise, and a visible-but-dead item is worse.
+  const items = NAV_ITEMS.filter((item) => canAny(item.anyOf));
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -25,7 +25,7 @@ export function AppLayout() {
             Office Performance Monitoring
           </p>
         </div>
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -42,13 +42,16 @@ export function AppLayout() {
           </NavLink>
         ))}
         <div className="mt-auto pt-4 border-t">
-          <p className="px-2 text-xs text-muted-foreground truncate">
-            {user?.name} · {user?.role}
-          </p>
+          <div className="px-2">
+            <p className="text-xs text-muted-foreground truncate">{user?.name}</p>
+            <Badge variant="secondary" className="mt-1">
+              {user ? ROLE_LABELS[user.role] : ""}
+            </Badge>
+          </div>
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start mt-1"
+            className="w-full justify-start mt-2"
             onClick={logout}
           >
             Log out

@@ -1,12 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePermission } from "@/features/auth/usePermission";
 import { CreateEmployeeDialog } from "@/features/employees/CreateEmployeeDialog";
 import { useDeactivateEmployee, useEmployees } from "@/features/employees/hooks";
 
 export function EmployeesPage() {
   const { data: employees, isLoading, isError } = useEmployees();
   const deactivateEmployee = useDeactivateEmployee();
+  const { can } = usePermission();
+
+  // A Main Admin or IT Admin owns the roster; anyone else would only see a
+  // read-only list, with the action column removed entirely.
+  const canManage = can("employees.manage");
 
   return (
     <div className="flex flex-col gap-4">
@@ -14,10 +20,12 @@ export function EmployeesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Employees</h1>
           <p className="text-sm text-muted-foreground">
-            Employee profiles, office assignment, and performance history.
+            {canManage
+              ? "Employee profiles, office assignment, and performance history."
+              : "Employee profiles and office assignment."}
           </p>
         </div>
-        <CreateEmployeeDialog />
+        {canManage && <CreateEmployeeDialog />}
       </div>
 
       <Card>
@@ -32,7 +40,9 @@ export function EmployeesPage() {
           )}
           {employees && employees.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No employees yet. Add the first one above.
+              {canManage
+                ? "No employees yet. Add the first one above."
+                : "No employees have been added yet."}
             </p>
           )}
           {employees && employees.length > 0 && (
@@ -42,7 +52,7 @@ export function EmployeesPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Position</TableHead>
                   <TableHead>Office</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {canManage && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -57,16 +67,18 @@ export function EmployeesPage() {
                         ? `${employee.office.name} (${employee.office.code})`
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={deactivateEmployee.isPending}
-                        onClick={() => deactivateEmployee.mutate(employee.id)}
-                      >
-                        Deactivate
-                      </Button>
-                    </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={deactivateEmployee.isPending}
+                          onClick={() => deactivateEmployee.mutate(employee.id)}
+                        >
+                          Deactivate
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
