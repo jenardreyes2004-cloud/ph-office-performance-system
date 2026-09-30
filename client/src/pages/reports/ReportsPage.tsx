@@ -42,9 +42,9 @@ export function ReportsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Reports</h1>
+          <h1 className="text-2xl font-semibold">Scorecards</h1>
           <p className="text-sm text-muted-foreground">
-            Office-level Balanced Scorecards. Pick a period, then click an office
+            Office-level Balanced Scorecards. Pick a period, then open an office
             to view or print its report.
           </p>
         </div>

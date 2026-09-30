@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types";
+import type { AccessLevel, UserRole } from "@/types";
 
 /**
  * Client-side mirror of the server's RBAC.
@@ -19,6 +19,8 @@ export type Permission =
   | "performance.view"
   | "monthlyUpdates.view"
   | "notifications.view"
+  | "auditLog.view"
+  | "systemLog.view"
   | "scorecards.view"
   | "access.view"
   // Writes
@@ -46,6 +48,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     "notifications.view",
     "scorecards.view",
     "access.view",
+    "auditLog.view",
+    "systemLog.view",
     "offices.manage",
     "employees.manage",
     "plans.manage",
@@ -80,6 +84,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     "dashboard.view",
     "employees.view",
     "notifications.view",
+    "auditLog.view",
+    "systemLog.view",
     "access.view",
     "employees.manage",
     "notifications.send",
@@ -111,6 +117,35 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   OFFICE_ADMIN: "Office Administrator",
   IT_ADMIN: "IT Administrator",
   EMPLOYEE: "Employee",
+};
+
+/**
+ * The hierarchy level is what governs authority, so it is the label a person
+ * should recognise themselves by. The account role is a secondary detail — an
+ * Office Admin and a Department Head share a role but not a level.
+ */
+export const ACCESS_LEVEL_LABELS: Record<AccessLevel, string> = {
+  HIERARCHY_HEAD: "Hierarchy Head",
+  DEPARTMENT_HEAD: "Department Head",
+  OFFICE_HEAD: "Office Head",
+  SUB_UNIT_HEAD: "Sub-Unit Head",
+  TEAM_LEAD: "Team Lead",
+  EMPLOYEE: "Employee",
+};
+
+export const ACCESS_LEVEL_SUMMARIES: Record<AccessLevel, string> = {
+  HIERARCHY_HEAD:
+    "Full access. Manages the organizational structure, tags, projects, and finalizes office scorecards.",
+  DEPARTMENT_HEAD:
+    "Manages projects and people across your department and everything beneath it.",
+  OFFICE_HEAD:
+    "Manages projects and people across your office and its sub-units.",
+  SUB_UNIT_HEAD:
+    "Manages projects and people within your sub-unit.",
+  TEAM_LEAD:
+    "Reports progress for the team you lead and grades their performance.",
+  EMPLOYEE:
+    "Read-only access to your own assignments and the targets you need to hit.",
 };
 
 export const ROLE_SUMMARIES: Record<UserRole, string> = {
@@ -188,12 +223,22 @@ export const PERMISSION_GROUPS: {
     ],
   },
   {
-    title: "Communication",
+    title: "Communication & oversight",
     permissions: [
       {
         permission: "notifications.send",
         label: "Send notifications",
         description: "Send a notification to another user.",
+      },
+      {
+        permission: "auditLog.view",
+        label: "View the audit log",
+        description: "See who changed what, and when.",
+      },
+      {
+        permission: "systemLog.view",
+        label: "View the system log",
+        description: "Server health, sign-in activity and errors.",
       },
     ],
   },

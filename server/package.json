@@ -12,7 +12,12 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "db:seed:org": "tsx prisma/seedOrganizationStructure.ts",
-    "db:seed:scorecard": "tsx prisma/seedScorecardTemplate.ts"
+    "db:seed:levels": "tsx prisma/seedAccessLevels.ts",
+    "db:seed:scorecard": "tsx prisma/seedScorecardTemplate.ts",
+    "check:scoping": "tsx prisma/checkReadScoping.ts",
+    "check:access": "tsx prisma/checkAccessLevels.ts",
+    "check:org-search": "tsx prisma/checkOrgSearch.ts",
+    "check:hierarchy": "tsx prisma/checkOfficeHierarchy.ts"
   },
   "keywords": [],
   "author": "",
@@ -48,3 +53,5 @@
     "typescript": "^7.0.2"
   }
 }
+
+

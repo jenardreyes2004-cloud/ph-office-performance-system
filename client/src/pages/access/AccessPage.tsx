@@ -3,12 +3,12 @@ import { Check, Minus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePermission } from "@/features/auth/usePermission";
-import { PERMISSION_GROUPS, ROLE_LABELS, ROLE_SUMMARIES } from "@/lib/permissions";
+import { PERMISSION_GROUPS, ROLE_LABELS, ACCESS_LEVEL_LABELS } from "@/lib/permissions";
 
 export function AccessPage() {
-  const { role, granted } = usePermission();
+  const { role, level, granted } = usePermission();
 
-  if (!role) return null;
+  if (!role || !level) return null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -22,15 +22,20 @@ export function AccessPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Your role</CardTitle>
+          <CardTitle className="text-base">Your level</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2">
-            <Badge>{ROLE_LABELS[role]}</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Level is the primary identity — it is what governs authority.
+                The account role is shown as context, not as the headline. */}
+            <Badge>{ACCESS_LEVEL_LABELS[level]}</Badge>
+            <Badge variant="outline">{ROLE_LABELS[role]}</Badge>
             <Badge variant="outline">{granted.length} permissions</Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
-            {ROLE_SUMMARIES[role]}
+            Your level comes from the unit you are responsible for. Two people
+            with the same account role can sit at different levels, and see
+            different things.
           </p>
         </CardContent>
       </Card>

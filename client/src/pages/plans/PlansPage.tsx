@@ -27,11 +27,11 @@ export function PlansPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Plans</h1>
+          <h1 className="text-2xl font-semibold">Projects</h1>
           <p className="text-sm text-muted-foreground">
             {canManage
-              ? "Create and manage organizational plans, office assignments, and employee tasks."
-              : "Plans you are assigned to, and the offices they cover."}
+              ? "Create and manage projects, the offices they cover, and the tasks assigned under them."
+              : "The projects you are assigned to, and the offices they cover."}
           </p>
         </div>
         {canManage && <CreatePlanDialog />}

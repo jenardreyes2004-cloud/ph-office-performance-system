@@ -98,17 +98,17 @@ export const scorecardPeriodService = {
     return period;
   },
 
-  // Every office, alongside its scorecard for this period if one exists yet.
-  // This is the "click into an office" list view.
+  // Every scored office, alongside its scorecard for this period if one
+  // exists yet. This is the "click into an office" list view.
   //
-  // Only head offices appear: the sub-divisions and units under them are
-  // tracked for structure, plans, and employees, but the SPMS scorecard is
-  // filled out at the head-office level (see the isHeadOffice column).
+  // Offices are the scored units — the OVP and the offices that sit under no
+  // department. Departments and sub-units are tracked for structure, plans and
+  // employees, but the SPMS scorecard is not filled out for them.
   async listOfficesForPeriod(periodId: string) {
     await this.getById(periodId);
 
     const offices = await prisma.office.findMany({
-      where: { archivedAt: null, isHeadOffice: true },
+      where: { archivedAt: null, kind: "OFFICE" },
       orderBy: { name: "asc" },
       include: {
         _count: { select: { employees: true } },

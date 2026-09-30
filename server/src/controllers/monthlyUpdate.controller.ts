@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 
+import { resolveActor } from "@/lib/scope";
 import { monthlyUpdateService } from "@/services/monthlyUpdate.service";
 import {
   createMonthlyUpdateSchema,
@@ -11,13 +12,15 @@ export const monthlyUpdateController = {
     const officeId = typeof req.query.officeId === "string" ? req.query.officeId : undefined;
     const planId = typeof req.query.planId === "string" ? req.query.planId : undefined;
 
-    const updates = await monthlyUpdateService.list({ officeId, planId });
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
+    const updates = await monthlyUpdateService.list(scope, { officeId, planId });
 
     res.json(updates);
   },
 
   async getById(req: Request<{ id: string }>, res: Response) {
-    const update = await monthlyUpdateService.getById(req.params.id);
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
+    const update = await monthlyUpdateService.getById(scope, req.params.id);
 
     res.json(update);
   },
@@ -28,7 +31,8 @@ export const monthlyUpdateController = {
     // submittedByUserId comes from the authenticated user, never the request body.
     const submittedByUserId = req.user!.userId;
 
-    const update = await monthlyUpdateService.create(data, submittedByUserId);
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
+    const update = await monthlyUpdateService.create(scope, data, submittedByUserId);
 
     res.status(201).json(update);
   },
@@ -36,7 +40,8 @@ export const monthlyUpdateController = {
   async update(req: Request<{ id: string }>, res: Response) {
     const data = updateMonthlyUpdateSchema.parse(req.body);
 
-    const update = await monthlyUpdateService.update(req.params.id, data);
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
+    const update = await monthlyUpdateService.update(scope, req.params.id, data);
 
     res.json(update);
   },

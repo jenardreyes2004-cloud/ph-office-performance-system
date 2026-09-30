@@ -2,6 +2,7 @@ import type { PlanStatus } from "@/generated/prisma/client";
 
 import { prisma } from "@/prisma/client";
 import { AppError } from "@/middleware/errorHandler";
+import { canAccessPlan, planWhere, type ActorScope } from "@/lib/scope";
 import type {
   AddPlanOfficeInput,
   AssignEmployeeInput,
@@ -29,20 +30,23 @@ const planDetailInclude = {
 };
 
 export const planService = {
-  async list(status?: string) {
+  async list(scope: ActorScope, status?: string) {
     return prisma.plan.findMany({
-      where: status ? { status: status as PlanStatus } : {},
+      where: { ...planWhere(scope), ...(status ? { status: status as PlanStatus } : {}) },
       orderBy: { periodStart: "desc" },
       include: planListInclude,
     });
   },
 
-  async getById(id: string) {
+  // 404 for "not yours" rather than 403, so a caller cannot probe for the
+  // existence of plans they are not allowed to see.
+  async getById(scope: ActorScope, id: string) {
     const plan = await prisma.plan.findUnique({
       where: { id },
       include: planDetailInclude,
     });
     if (!plan) throw new AppError("Plan not found", 404);
+    if (!(await canAccessPlan(scope, id))) throw new AppError("Plan not found", 404);
     return plan;
   },
 
@@ -50,20 +54,20 @@ export const planService = {
     return prisma.plan.create({ data });
   },
 
-  async update(id: string, data: UpdatePlanInput) {
-    await this.getById(id); // 404s if missing
+  async update(scope: ActorScope, id: string, data: UpdatePlanInput) {
+    await this.getById(scope, id);
     return prisma.plan.update({ where: { id }, data });
   },
 
-  async archive(id: string) {
-    await this.getById(id);
+  async archive(scope: ActorScope, id: string) {
+    await this.getById(scope, id);
     return prisma.plan.update({ where: { id }, data: { status: "ARCHIVED" } });
   },
 
   // --- Office assignment (PlanOffice) ---
 
-  async addOffice(planId: string, data: AddPlanOfficeInput) {
-    await this.getById(planId);
+  async addOffice(scope: ActorScope, planId: string, data: AddPlanOfficeInput) {
+    await this.getById(scope, planId);
 
     const office = await prisma.office.findUnique({ where: { id: data.officeId } });
     if (!office) throw new AppError("Office not found", 404);
@@ -80,8 +84,8 @@ export const planService = {
     });
   },
 
-  async removeOffice(planId: string, officeId: string) {
-    await this.getById(planId);
+  async removeOffice(scope: ActorScope, planId: string, officeId: string) {
+    await this.getById(scope, planId);
     const existing = await prisma.planOffice.findUnique({
       where: { planId_officeId: { planId, officeId } },
     });
@@ -91,8 +95,8 @@ export const planService = {
 
   // --- Employee assignment (PlanAssignment) ---
 
-  async assignEmployee(planId: string, data: AssignEmployeeInput) {
-    await this.getById(planId);
+  async assignEmployee(scope: ActorScope, planId: string, data: AssignEmployeeInput) {
+    await this.getById(scope, planId);
 
     const employee = await prisma.employee.findUnique({ where: { id: data.employeeId } });
     if (!employee) throw new AppError("Employee not found", 404);
@@ -125,7 +129,13 @@ export const planService = {
     });
   },
 
-  async updateAssignment(planId: string, employeeId: string, data: UpdateAssignmentInput) {
+  async updateAssignment(
+    scope: ActorScope,
+    planId: string,
+    employeeId: string,
+    data: UpdateAssignmentInput,
+  ) {
+    await this.getById(scope, planId);
     const existing = await prisma.planAssignment.findUnique({
       where: { planId_employeeId: { planId, employeeId } },
     });
@@ -140,7 +150,8 @@ export const planService = {
     });
   },
 
-  async removeAssignment(planId: string, employeeId: string) {
+  async removeAssignment(scope: ActorScope, planId: string, employeeId: string) {
+    await this.getById(scope, planId);
     const existing = await prisma.planAssignment.findUnique({
       where: { planId_employeeId: { planId, employeeId } },
     });

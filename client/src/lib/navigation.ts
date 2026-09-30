@@ -1,5 +1,24 @@
 import type { Permission } from "@/lib/permissions";
 
+/**
+ * Navigation, grouped into four spines.
+ *
+ * The grouping is the whole point. The app deals with two fundamentally
+ * different things that used to be mixed together and named inconsistently:
+ *
+ *   STRUCTURE — who belongs where. The organizational hierarchy and the
+ *               people in it. Describes the organisation itself.
+ *   WORK      — what people are doing. Projects, assignments, quotas,
+ *               progress. Describes activity.
+ *
+ * Conflating them is why "Offices" used to show a tree of units *and* an
+ * employee count, and why "Plans" and "Projects" were the same screen. A
+ * department head looking for their department should never have to wonder
+ * whether they are looking at structure or at a project.
+ *
+ * A third and fourth spine keep results and machinery separate from both, so
+ * the sidebar reads as four questions rather than eleven unrelated links.
+ */
 export interface NavItem {
   to: string;
   label: string;
@@ -8,62 +27,140 @@ export interface NavItem {
   anyOf: readonly Permission[];
 }
 
-/**
- * Sidebar entries, in order. Each item declares the permission that reveals
- * it, so a role only ever sees the sections it can actually reach:
- *
- *   MAIN_ADMIN    8 sections — the whole system
- *   OFFICE_ADMIN  5 sections — plans, progress, and their office's scorecard
- *   IT_ADMIN      3 sections — the roster and notifications
- *   EMPLOYEE      4 sections — read-only on their own plans and performance
- */
-export const NAV_ITEMS: readonly NavItem[] = [
+export interface NavGroup {
+  /** Shown as a small uppercase heading in the sidebar. */
+  title: string;
+  /** One line explaining what this spine is for, shown as a tooltip-ish line. */
+  blurb: string;
+  items: NavItem[];
+}
+
+export const NAV_GROUPS: readonly NavGroup[] = [
   {
-    to: "/dashboard",
-    label: "Dashboard",
-    description: "Your summary",
-    anyOf: ["dashboard.view"],
+    title: "Overview",
+    blurb: "Where you stand",
+    items: [
+      {
+        to: "/dashboard",
+        label: "Dashboard",
+        description: "Your numbers and your place in the hierarchy",
+        anyOf: ["dashboard.view"],
+      },
+    ],
   },
   {
-    to: "/plans",
-    label: "Plans",
-    description: "Plans and assignments",
-    anyOf: ["plans.view"],
+    title: "Structure",
+    blurb: "Who belongs where — the organizational hierarchy",
+    items: [
+      {
+        to: "/organization",
+        label: "Organization",
+        description: "Departments, offices and sub-units",
+        anyOf: ["offices.view"],
+      },
+      {
+        to: "/employees",
+        label: "People",
+        description: "The employee roster",
+        anyOf: ["employees.view"],
+      },
+    ],
   },
   {
-    to: "/performance/records",
-    label: "My Performance",
-    description: "Performance records",
-    anyOf: ["performance.view"],
+    title: "Work",
+    blurb: "What people are doing — projects and progress",
+    items: [
+      {
+        to: "/projects",
+        label: "Projects",
+        description: "Projects, offices and assignments",
+        anyOf: ["plans.view"],
+      },
+      {
+        to: "/my-work",
+        label: "My Work",
+        description: "Your assignments and targets",
+        anyOf: ["plans.view"],
+      },
+      {
+        to: "/monthly-updates",
+        label: "Monthly Updates",
+        description: "Progress submitted each month",
+        anyOf: ["monthlyUpdates.view"],
+      },
+    ],
   },
   {
-    to: "/reports",
-    label: "Reports",
-    description: "Office scorecards",
-    anyOf: ["scorecards.view"],
+    title: "Results",
+    blurb: "How it is measured",
+    items: [
+      {
+        to: "/scorecards",
+        label: "Scorecards",
+        description: "Office performance reports",
+        anyOf: ["scorecards.view"],
+      },
+      {
+        to: "/performance-scores",
+        label: "Performance Scores",
+        description: "Individual employee scores",
+        anyOf: ["performance.view"],
+      },
+      {
+        to: "/metrics",
+        label: "Metrics",
+        description: "Metric definitions and weights",
+        anyOf: ["metrics.view"],
+      },
+    ],
   },
   {
-    to: "/performance",
-    label: "Performance Metrics",
-    description: "Metric definitions and weights",
-    anyOf: ["metrics.view"],
-  },
-  {
-    to: "/employees",
-    label: "Employees",
-    description: "Roster and assignments",
-    anyOf: ["employees.view"],
-  },
-  {
-    to: "/offices",
-    label: "Offices",
-    description: "Office directory",
-    anyOf: ["offices.view"],
-  },
-  {
-    to: "/access",
-    label: "My Access",
-    description: "What you can do",
-    anyOf: ["access.view"],
+    title: "System",
+    blurb: "Messages, oversight and your own access",
+    items: [
+      {
+        to: "/notifications",
+        label: "Notifications",
+        description: "Messages for you",
+        anyOf: ["notifications.view"],
+      },
+      {
+        to: "/audit-log",
+        label: "Audit Log",
+        description: "Who changed what",
+        anyOf: ["auditLog.view"],
+      },
+      {
+        to: "/system-log",
+        label: "System Log",
+        description: "Server health and events",
+        anyOf: ["systemLog.view"],
+      },
+      {
+        to: "/access",
+        label: "My Access",
+        description: "What you can do",
+        anyOf: ["access.view"],
+      },
+    ],
   },
 ];
+
+/**
+ * Legacy paths kept working. Renaming a URL is free for us and expensive for
+ * anyone with a bookmark, a shared link, or muscle memory.
+ */
+export const ROUTE_REDIRECTS: readonly { from: string; to: string }[] = [
+  { from: "/offices", to: "/organization" },
+  { from: "/plans", to: "/projects" },
+  { from: "/plans/:id", to: "/projects/:id" },
+  { from: "/reports", to: "/scorecards" },
+  { from: "/reports/office-scorecards/:id", to: "/scorecards/:id" },
+  { from: "/performance", to: "/metrics" },
+  { from: "/performance/records", to: "/performance-scores" },
+];
+
+/** Flattened, for callers that just want the visible items. */
+export function visibleNavItems(canAny: (anyOf: readonly Permission[]) => boolean): NavItem[] {
+  return NAV_GROUPS.flatMap((group) => group.items).filter((item) => canAny(item.anyOf));
+}

@@ -1,6 +1,11 @@
 import { prisma } from "@/prisma/client";
 
 import { AppError } from "@/middleware/errorHandler";
+import {
+  canAccessEmployee,
+  performanceRecordWhere,
+  type ActorScope,
+} from "@/lib/scope";
 
 import type {
   CreatePerformanceRecordInput,
@@ -8,8 +13,9 @@ import type {
 } from "@/schemas/performanceRecord.schema";
 
 export const performanceRecordService = {
-  async list() {
+  async list(scope: ActorScope) {
     return prisma.performanceRecord.findMany({
+      where: performanceRecordWhere(scope),
       orderBy: { periodStart: "desc" },
       include: {
         employee: true,
@@ -20,8 +26,24 @@ export const performanceRecordService = {
     });
   },
 
-  async getById(id: string) {
+  // 404 rather than 403 so a caller cannot probe for records they may not see.
+  async getById(scope: ActorScope, id: string) {
     const record = await prisma.performanceRecord.findUnique({
+      where: { id },
+      include: {
+        employee: { select: { id: true, officeId: true } },
+      },
+    });
+
+    if (!record) {
+      throw new AppError("Performance record not found", 404);
+    }
+
+    if (!(await canAccessEmployee(scope, record.employeeId))) {
+      throw new AppError("Performance record not found", 404);
+    }
+
+    return prisma.performanceRecord.findUnique({
       where: { id },
       include: {
         employee: true,
@@ -30,12 +52,6 @@ export const performanceRecordService = {
         recordedBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
-
-    if (!record) {
-      throw new AppError("Performance record not found", 404);
-    }
-
-    return record;
   },
 
   async create(data: CreatePerformanceRecordInput, recordedById: string) {
@@ -101,8 +117,8 @@ export const performanceRecordService = {
     });
   },
 
-  async update(id: string, data: UpdatePerformanceRecordInput) {
-    await this.getById(id);
+  async update(scope: ActorScope, id: string, data: UpdatePerformanceRecordInput) {
+    await this.getById(scope, id);
 
     if (data.employeeId) {
       const employee = await prisma.employee.findUnique({

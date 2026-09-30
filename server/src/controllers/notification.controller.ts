@@ -13,6 +13,13 @@ export const notificationController = {
     res.json(notifications);
   },
 
+  // Active accounts, for the admin send form. Guarded by requireRole on the
+  // route, not here.
+  async listRecipients(_req: Request, res: Response) {
+    const recipients = await notificationService.listRecipients();
+    res.json(recipients);
+  },
+
   async create(req: Request, res: Response) {
     const data = createNotificationSchema.parse(req.body);
     const senderId = req.user!.userId;

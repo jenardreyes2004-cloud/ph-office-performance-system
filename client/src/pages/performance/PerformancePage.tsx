@@ -22,10 +22,10 @@ export function PerformancePage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Performance Metrics</h1>
+          <h1 className="text-2xl font-semibold">Metrics</h1>
           <p className="text-sm text-muted-foreground">
             {canManage
-              ? "Define the metrics used to score employee performance. Active metric weights must sum to 100% or less."
+              ? "The weighted metrics used to score individual performance. Active weights must total 100% or less."
               : "The metrics used to score employee performance."}
           </p>
         </div>

@@ -84,7 +84,13 @@ Backend and client both typecheck and build clean, and the API answers on
 - [x] Frontend: Vite + React + TS + Tailwind + shadcn/ui — builds and runs
 - [x] Backend: Express + TS, layered structure, health check route — builds and runs
 - [x] PostgreSQL + Prisma schema (v7, driver-adapter based via `@prisma/adapter-pg`) — migrated
-- [x] Authentication + RBAC — JWT in httpOnly cookie, `authenticate` + `requireRole` applied consistently across all mutating routes
+- [x] Authentication + RBAC — JWT in httpOnly cookie, `authenticate` + `requireRole` applied consistently across all mutating routes, and `lib/scope.ts` filtering every list endpoint to the caller's own office (see `docs/PERMISSIONS.md`)
+- [x] Audit log — every successful mutation recorded with actor, action, entity and touched fields; readable by MAIN_ADMIN and IT_ADMIN
+- [x] System log — operational view for the IT admin: auth events, 4xx/5xx, slow requests, unmatched routes, unhandled errors with stack traces
+- [x] **Six-level access hierarchy** — access derived from position in the org tree rather than a role label: `Employee.headedOfficeId` + `Office.kind` (DEPARTMENT / OFFICE / SUB_UNIT) resolve the caller's level in `lib/access.ts`. Team lead is a per-project relation, not a level. See `docs/ACCESS_HIERARCHY.md`
+- [x] Dashboard stats — `GET /api/dashboard/stats`, scoped per role and office
+- [x] Monthly updates UI, notifications UI (with send + mark read), audit log viewer
+- [x] Schema in place for tagging, transfers, teams/leads and quotas (services and UI still to build)
 - [x] Core CRUD modules: offices, employees, plans (+ plan-office links, plan assignments), metrics, performance records
 - [x] Office hierarchy — self-relation (`parentId`), the full PhilHealth structure as 29 offices across 3 levels, `isHeadOffice` flag marking the 4 that run scorecards, collapsible tree view, cycle-safe re-parenting, and a guard against archiving a parent with active sub-units
 - [x] Monthly updates (office/plan progress submissions)
@@ -94,17 +100,25 @@ Backend and client both typecheck and build clean, and the API answers on
 
 Still open:
 
-- [ ] Dashboard is a placeholder — no stats endpoint on the server
-- [ ] Frontend for monthly updates and notifications
+- [ ] `JWT_SECRET` and the database password are in public git history — rotate both
 - [ ] `Report` model has no API (the scorecard report view covers the reporting need for now)
-- [ ] Audit log writes (table exists, not yet wired into mutating actions)
+- [ ] Scorecard template gaps: weights total 92.5% not 100%, and one measure's bands were cut off in the source photo
+- [ ] No automated test suite — verification is currently two scripts (`docs/probe-rbac.ps1`, `server/prisma/checkReadScoping.ts`)
+- [ ] No pagination on any list endpoint
+- [ ] No error boundary or loading skeleton in the client
 
-## Next step
+## Verification
 
-Build a `dashboard` stats endpoint (counts + rollups per role) and replace the
-placeholder cards in `client/src/pages/dashboard/DashboardPage.tsx` with live
-numbers. After that, the monthly-updates and notifications UI, then an
-audit-logging pass across existing mutations.
+```powershell
+powershell -File docs\probe-rbac.ps1            # 188 HTTP probes across 4 roles
+cd server
+npm run check:access        # each account resolves to its intended hierarchy level
+npm run check:scoping       # read-filtering assertions
+npm run check:hierarchy     # no cycles in the office tree
+```
+
+`docs/PERMISSIONS.md` records what each role can do, how it was verified, and
+what is deliberately still unscoped.
 
 ## Seed accounts
 

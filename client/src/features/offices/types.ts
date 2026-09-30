@@ -1,3 +1,5 @@
+import type { OrgNodeKind } from "@/types";
+
 export interface Office {
   id: string;
   name: string;
@@ -7,7 +9,7 @@ export interface Office {
   createdAt: string;
   updatedAt: string;
   parentId?: string | null;
-  isHeadOffice?: boolean;
+  kind?: OrgNodeKind;
   parent?: { id: string; name: string; code: string } | null;
   children?: { id: string; name: string; code: string; isHeadOffice: boolean }[];
   _count?: { employees: number };
@@ -18,7 +20,10 @@ export interface OfficeNode {
   id: string;
   name: string;
   code: string;
-  isHeadOffice: boolean;
+  /** DEPARTMENT | OFFICE | SUB_UNIT — drives the kind badge. */
+  kind: OrgNodeKind;
+  /** Offices are the scored units; departments and sub-units are not. */
+  isScored: boolean;
   parentId: string | null;
   employeeCount: number;
   /** Headcount across the subtree, this office included. */

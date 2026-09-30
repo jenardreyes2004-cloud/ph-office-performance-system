@@ -24,12 +24,12 @@ export function PerformanceRecordsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Performance Records</h1>
+          <h1 className="text-2xl font-semibold">Performance Scores</h1>
 
           <p className="text-sm text-muted-foreground">
             {canRecord
-              ? "View and record employee performance scores."
-              : "View employee performance scores and records."}
+              ? "View and record individual employee performance scores."
+              : "Performance scores recorded for employees you can see."}
           </p>
         </div>
 

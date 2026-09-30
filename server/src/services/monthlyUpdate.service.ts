@@ -1,6 +1,7 @@
 import { prisma } from "@/prisma/client";
 
 import { AppError } from "@/middleware/errorHandler";
+import { assignableOfficeIds, monthlyUpdateWhere, type ActorScope } from "@/lib/scope";
 
 import type {
   CreateMonthlyUpdateInput,
@@ -14,9 +15,10 @@ const INCLUDE = {
 } as const;
 
 export const monthlyUpdateService = {
-  async list(filters: { officeId?: string; planId?: string }) {
+  async list(scope: ActorScope, filters: { officeId?: string; planId?: string }) {
     return prisma.monthlyUpdate.findMany({
       where: {
+        ...monthlyUpdateWhere(scope),
         ...(filters.officeId ? { officeId: filters.officeId } : {}),
         ...(filters.planId ? { planId: filters.planId } : {}),
       },
@@ -25,7 +27,7 @@ export const monthlyUpdateService = {
     });
   },
 
-  async getById(id: string) {
+  async getById(scope: ActorScope, id: string) {
     const update = await prisma.monthlyUpdate.findUnique({
       where: { id },
       include: INCLUDE,
@@ -35,14 +37,25 @@ export const monthlyUpdateService = {
       throw new AppError("Monthly update not found", 404);
     }
 
+    // An Office Admin must not be able to read another office's submission.
+    if (!scope.isSuperAdmin && !scope.officeScopeIds.includes(update.officeId)) {
+      throw new AppError("Monthly update not found", 404);
+    }
+
     return update;
   },
 
-  async create(data: CreateMonthlyUpdateInput, submittedByUserId: string) {
+  async create(scope: ActorScope, data: CreateMonthlyUpdateInput, submittedByUserId: string) {
     const office = await prisma.office.findUnique({ where: { id: data.officeId } });
 
     if (!office) {
       throw new AppError("Office not found", 404);
+    }
+
+    // An Office Admin may only file updates for their own office subtree.
+    const allowed = assignableOfficeIds(scope);
+    if (allowed && !allowed.includes(data.officeId)) {
+      throw new AppError("You may only submit monthly updates for your own office", 403);
     }
 
     if (data.planId) {
@@ -84,8 +97,8 @@ export const monthlyUpdateService = {
     });
   },
 
-  async update(id: string, data: UpdateMonthlyUpdateInput) {
-    await this.getById(id); // 404s if missing
+  async update(scope: ActorScope, id: string, data: UpdateMonthlyUpdateInput) {
+    await this.getById(scope, id); // 404s if missing or not theirs
 
     return prisma.monthlyUpdate.update({
       where: { id },

@@ -1,12 +1,14 @@
 import { prisma } from "@/prisma/client";
 import { AppError } from "@/middleware/errorHandler";
+import type { OrgNodeKind } from "@/generated/prisma/client";
 import type { CreateOfficeInput, UpdateOfficeInput } from "@/schemas/office.schema";
 
 export interface OfficeNode {
   id: string;
   name: string;
   code: string;
-  isHeadOffice: boolean;
+  kind: OrgNodeKind;
+  isScored: boolean;
   parentId: string | null;
   employeeCount: number;
   // Headcount across the whole subtree, this office included. A division like
@@ -121,7 +123,10 @@ export const officeService = {
         id: o.id,
         name: o.name,
         code: o.code,
-        isHeadOffice: o.isHeadOffice,
+        // Offices are the scored units; departments and sub-units are not
+        // scored on their own.
+        isScored: o.kind === "OFFICE",
+        kind: o.kind,
         parentId: o.parentId,
         employeeCount: o._count.employees,
         // Filled in below once the tree is assembled.

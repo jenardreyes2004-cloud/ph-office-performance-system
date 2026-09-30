@@ -15,6 +15,63 @@ enum UserRole {
   EMPLOYEE
 }
 
+// Position of a node in the organizational hierarchy. Replaces the old
+// isHeadOffice boolean: a boolean could not say "this is a department", and
+// the six access levels are derived from this plus who heads the node.
+enum OrgNodeKind {
+  DEPARTMENT
+  OFFICE
+  SUB_UNIT
+}
+
+// Which office a person is responsible for. Resolved from the Office row this
+// points at, not stored as a role — a person heads exactly one node, and
+// whether that makes them a department, office or sub-unit head is a
+// structural fact rather than something to duplicate.
+enum AccessLevel {
+  HIERARCHY_HEAD
+  DEPARTMENT_HEAD
+  OFFICE_HEAD
+  SUB_UNIT_HEAD
+  TEAM_LEAD
+  EMPLOYEE
+}
+
+enum TransferType {
+  EMPLOYEE
+  OFFICE
+}
+
+// COMPLETED is unreachable without a recorded CPS_VERIFIED step, so the
+// in-person paperwork is structurally required rather than a convention.
+enum TransferStatus {
+  PENDING
+  APPROVED
+  CPS_VERIFIED
+  COMPLETED
+  REJECTED
+}
+
+enum QuotaStatus {
+  DRAFT
+  ON_TRACK
+  AT_RISK
+  MET
+  MISSED
+}
+
+// Severity for the operational system log. Deliberately separate from the
+// audit log: a failed login or a slow query is something the IT Admin needs to
+// see, but it is not a governance event and must not clutter the trail of
+// who changed which performance score.
+enum SystemLogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  CRITICAL
+}
+
 enum PlanStatus {
   DRAFT
   ACTIVE
@@ -89,6 +146,7 @@ model User {
   records   PerformanceRecord[] @relation("RecordedBy")
   reports   Report[]            @relation("GeneratedBy")
   auditLogs AuditLog[]
+  systemLogs SystemLog[]
 
   // New: who added which employees, who assigned which plan assignments
   employeesAdded          Employee[]       @relation("EmployeeAddedBy")
@@ -99,6 +157,16 @@ model User {
   notificationsSent     Notification[] @relation("SentNotifications")
 
   officeScorecardsFinalized OfficeScorecard[] @relation("ScorecardFinalizedBy")
+
+  // Tagging — MAIN_ADMIN only, enforced in the route guards.
+  tagsCreated          Tag[]             @relation("TagCreatedBy")
+  tagsApplied          OfficeTag[]       @relation("TagAppliedBy")
+  transfersRequested   TransferRequest[] @relation("TransferRequestedBy")
+  transfersReviewed    TransferRequest[] @relation("TransferReviewedBy")
+  transfersCpsVerified TransferRequest[] @relation("TransferCpsVerifiedBy")
+  teamsAppointed       ProjectTeam[]     @relation("TeamAppointedBy")
+  teamLeadsAppointed   ProjectTeamLead[] @relation("TeamLeadAppointedBy")
+  quotasSubmitted      Quota[]           @relation("QuotaSubmittedBy")
 
   @@map("users")
 }
@@ -112,27 +180,34 @@ model Office {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  // Organizational hierarchy (see seedOrganizationStructure.ts). Null means
-  // the office sits at the top of the tree — currently only the Office of the
-  // Vice President. Self-relation, so any office can report to any other.
+  // Organizational hierarchy. Null means the node sits at the top of the
+  // tree — the Office of the Vice President, and the offices deliberately
+  // placed under no department (LEGAL, PAU, PMMO, the three NCRs).
+  // Self-relation, so any node can report to any other.
   parentId String?
   parent   Office?  @relation("OfficeHierarchy", fields: [parentId], references: [id])
   children Office[] @relation("OfficeHierarchy")
 
-  // Sub-unit vs. head office. Head offices (the OVP and the three NCR
-  // regional offices) run a Balanced Scorecard; their sub-divisions and units
-  // are tracked for structure, plans, and employees but are not scored
-  // separately. Never derived from the tree — set explicitly, because whether
-  // a unit is scored is a policy decision, not a structural fact.
-  isHeadOffice Boolean @default(false)
+  // DEPARTMENT | OFFICE | SUB_UNIT. Drives the access level of whoever heads
+  // the node, and decides which nodes carry a Balanced Scorecard (offices do;
+  // departments and sub-units are not scored on their own).
+  kind OrgNodeKind @default(OFFICE)
 
   employees        Employee[]
+  headedBy         Employee[]    @relation("HeadedOffice")
   planOffices      PlanOffice[]
   reports          Report[]
   monthlyUpdates   MonthlyUpdate[]
   officeScorecards OfficeScorecard[]
+  tags             OfficeTag[]
+
+  // Transfer requests where this node is the origin or destination.
+  transfersFrom    TransferRequest[] @relation("TransferFrom")
+  transfersTo      TransferRequest[] @relation("TransferTo")
+  transfersOf      TransferRequest[] @relation("TransferOffice")
 
   @@index([parentId])
+  @@index([kind])
   @@map("offices")
 }
 
@@ -151,6 +226,19 @@ model Employee {
   // New: which Office Admin/User added this employee to the roster
   addedByUserId String?
   addedBy       User?   @relation("EmployeeAddedBy", fields: [addedByUserId], references: [id])
+
+  // The organizational node this person is responsible for. Null means they
+  // hold no headship — an ordinary employee, or someone whose responsibility
+  // is a system function rather than an org unit (the IT Admin).
+  headedOfficeId String?
+  headedOffice   Office? @relation("HeadedOffice", fields: [headedOfficeId], references: [id])
+  accessLevel    AccessLevel @default(EMPLOYEE)
+
+  leadsTeams      ProjectTeam[]  @relation("TeamLead")
+  teamMemberships TeamMember[]
+  teamLeadRoles   ProjectTeamLead[]
+  quotas          Quota[]
+  transferRequests TransferRequest[]
 
   user               User?               @relation(fields: [userId], references: [id])
   office             Office              @relation(fields: [officeId], references: [id])
@@ -176,6 +264,9 @@ model Plan {
   performanceRecords PerformanceRecord[]
   reports            Report[]
   monthlyUpdates     MonthlyUpdate[]
+  teams              ProjectTeam[]
+  teamLeadRoles      ProjectTeamLead[]
+  quotas             Quota[]
 
   @@map("plans")
 }
@@ -435,5 +526,235 @@ model AuditLog {
   user User? @relation(fields: [userId], references: [id])
 
   @@index([entity, entityId])
+  @@index([createdAt])
   @@map("audit_logs")
+}
+
+// Operational log, written by the server rather than by a user action.
+// Answers "is the system healthy and who is hitting it" — as opposed to the
+// audit log's "who changed what". Read by the IT Admin; the MAIN_ADMIN can
+// read both.
+model SystemLog {
+  id      String         @id @default(uuid())
+  level   SystemLogLevel @default(INFO)
+  // Where it came from: "auth", "http", "database", "jobs", "startup".
+  category String
+  message  String
+
+  // Populated for HTTP-sourced events. A login failure is exactly the sort of
+  // thing an IT Admin needs to correlate by address.
+  userId    String?
+  method    String?
+  path      String?
+  status    Int?
+  durationMs Int?
+  ip        String?
+  userAgent String?
+
+  context Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([level])
+  @@index([category])
+  @@index([createdAt])
+  @@map("system_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Tagging
+//
+// Only a MAIN_ADMIN may create or apply a tag. A tag is typed via `category`
+// so that "regional" and "high risk" are not the same axis, and labels stay
+// unique per category rather than globally.
+// ---------------------------------------------------------------------------
+
+model Tag {
+  id          String      @id @default(uuid())
+  label       String
+  category    String
+  description String?
+  createdAt   DateTime    @default(now())
+  createdById String?
+
+  createdBy User?       @relation("TagCreatedBy", fields: [createdById], references: [id])
+  offices   OfficeTag[]
+
+  @@unique([label, category])
+  @@map("tags")
+}
+
+model OfficeTag {
+  officeId   String
+  tagId      String
+  taggedById String?
+  taggedAt   DateTime @default(now())
+
+  office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  taggedBy User?  @relation("TagAppliedBy", fields: [taggedById], references: [id])
+
+  @@id([officeId, tagId])
+  @@map("office_tags")
+}
+
+// ---------------------------------------------------------------------------
+// Transfers
+//
+// An EMPLOYEE transfer moves a person between offices; an OFFICE transfer
+// re-parents a node within the tree (an office under a different department, a
+// sub-unit under a different office). Only a MAIN_ADMIN approves. COMPLETED
+// requires a recorded CPS verification, so the in-person paperwork cannot be
+// skipped by going straight to finished.
+// ---------------------------------------------------------------------------
+
+model TransferRequest {
+  id     String       @id @default(uuid())
+  type   TransferType
+  status TransferStatus @default(PENDING)
+
+  // EMPLOYEE transfers move this person...
+  employeeId String?
+  // ...between these two offices.
+  fromOfficeId String
+  toOfficeId   String
+
+  // OFFICE transfers instead move the node itself. Recorded separately so an
+  // office move is not confused with a person move.
+  officeId String?
+
+  reason String
+
+  requestedByUserId String
+  requestedAt       DateTime @default(now())
+
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  reviewNote       String?
+
+  cpsVerifiedByUserId String?
+  cpsVerifiedAt       DateTime?
+
+  completedAt DateTime?
+
+  requestedBy User  @relation("TransferRequestedBy", fields: [requestedByUserId], references: [id])
+  reviewedBy  User? @relation("TransferReviewedBy", fields: [reviewedByUserId], references: [id])
+  cpsVerifiedBy User? @relation("TransferCpsVerifiedBy", fields: [cpsVerifiedByUserId], references: [id])
+
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+  fromOffice Office    @relation("TransferFrom", fields: [fromOfficeId], references: [id])
+  toOffice   Office    @relation("TransferTo", fields: [toOfficeId], references: [id])
+  office     Office?   @relation("TransferOffice", fields: [officeId], references: [id])
+
+  @@index([status])
+  @@index([employeeId])
+  @@map("transfer_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Teams
+//
+// A department head, office head or sub-unit head forms a team from staff
+// inside their own subtree and appoints one member as lead. The lead is a
+// position on THIS project only — the same person can lead a team on one plan
+// and be an ordinary contributor on another, which is why this is a relation
+// and not a role.
+// ---------------------------------------------------------------------------
+
+model ProjectTeam {
+  id     String @id @default(uuid())
+  planId String
+  name   String
+
+  // Temporary by construction: the lead holds this only for the life of the
+  // plan. Null until someone is appointed.
+  leadEmployeeId String?
+
+  appointedByUserId String
+  appointedAt       DateTime @default(now())
+
+  plan       Plan               @relation(fields: [planId], references: [id], onDelete: Cascade)
+  lead       Employee?          @relation("TeamLead", fields: [leadEmployeeId], references: [id])
+  appointedBy User               @relation("TeamAppointedBy", fields: [appointedByUserId], references: [id])
+  members    TeamMember[]
+  quotas     Quota[]
+
+  @@index([planId])
+  @@index([leadEmployeeId])
+  @@map("project_teams")
+}
+
+model TeamMember {
+  id         String   @id @default(uuid())
+  teamId     String
+  employeeId String
+  joinedAt   DateTime @default(now())
+
+  team     ProjectTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  employee Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, employeeId])
+  @@map("team_members")
+}
+
+// Flat record of "was appointed lead of some plan", kept separate from
+// ProjectTeam so that historical lead appointments survive a team being
+// dissolved, and so the audit trail of "who led what" is answerable.
+model ProjectTeamLead {
+  id               String   @id @default(uuid())
+  planId           String
+  employeeId       String
+  appointedByUserId String
+  appointedAt      DateTime @default(now())
+  endedAt          DateTime?
+
+  plan     Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  appointedBy User  @relation("TeamLeadAppointedBy", fields: [appointedByUserId], references: [id])
+
+  @@unique([planId, employeeId])
+  @@index([planId])
+  @@map("project_team_leads")
+}
+
+// ---------------------------------------------------------------------------
+// Quotas
+//
+// The information-asymmetry rule lives here: an Employee may read `targetValue`
+// but never `actualValue` or the team's numbers. The split must be enforced in
+// the API — hiding the column in the UI would still leak it over the wire.
+// ---------------------------------------------------------------------------
+
+model Quota {
+  id         String   @id @default(uuid())
+  planId     String
+  employeeId String
+  // Null for an individual quota; set when the quota belongs to a team.
+  teamId     String?
+
+  periodStart DateTime
+  periodEnd   DateTime
+
+  // Visible to the employee this quota is for, and to everyone above them.
+  targetValue Float
+
+  // Visible only to the team lead and above. Never sent to the employee.
+  actualValue Float?
+  status      QuotaStatus @default(DRAFT)
+  notes       String?
+
+  submittedByUserId String?
+  submittedAt       DateTime?
+  updatedAt         DateTime @updatedAt
+
+  plan     Plan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  employee Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  team     ProjectTeam?  @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  submittedBy User?      @relation("QuotaSubmittedBy", fields: [submittedByUserId], references: [id])
+
+  @@unique([planId, employeeId, periodStart])
+  @@index([employeeId])
+  @@index([teamId])
+  @@map("quotas")
 }

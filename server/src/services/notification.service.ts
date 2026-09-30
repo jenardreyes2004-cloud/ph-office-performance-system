@@ -64,6 +64,18 @@ export const notificationService = {
     });
   },
 
+  // Recipient picker for the admin "send a notification" form. Scoped to
+  // active accounts only; the client needs nothing else from a user list.
+  async listRecipients(): Promise<
+    { id: string; name: string; email: string; role: string }[]
+  > {
+    return prisma.user.findMany({
+      where: { isActive: true },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, email: true, role: true },
+    });
+  },
+
   async markAllRead(recipientId: string) {
     const { count } = await prisma.notification.updateMany({
       where: { recipientId, isRead: false },

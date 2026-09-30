@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 
+import { resolveActor } from "@/lib/scope";
 import { performanceRecordService } from "@/services/performanceRecord.service";
 import {
   createPerformanceRecordSchema,
@@ -8,13 +9,15 @@ import {
 
 export const performanceRecordController = {
   async list(req: Request, res: Response) {
-    const records = await performanceRecordService.list();
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
+    const records = await performanceRecordService.list(scope);
 
     res.json(records);
   },
 
   async getById(req: Request<{ id: string }>, res: Response) {
-    const record = await performanceRecordService.getById(req.params.id);
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
+    const record = await performanceRecordService.getById(scope, req.params.id);
 
     res.json(record);
   },
@@ -32,8 +35,9 @@ export const performanceRecordController = {
 
   async update(req: Request<{ id: string }>, res: Response) {
     const data = updatePerformanceRecordSchema.parse(req.body);
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
 
-    const record = await performanceRecordService.update(req.params.id, data);
+    const record = await performanceRecordService.update(scope, req.params.id, data);
 
     res.json(record);
   },

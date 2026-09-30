@@ -1,3 +1,5 @@
+import type { NextFunction, Request, Response } from "express";
+
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
@@ -5,7 +7,10 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 
 import { env } from "@/config/env";
-import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
+import { AppError, errorHandler, notFoundHandler } from "@/middleware/errorHandler";
+import { auditLog } from "@/middleware/auditLog";
+import { logAuthEvent, requestLogger } from "@/middleware/systemLog";
+import { systemLogService } from "@/services/systemLog.service";
 import { healthRouter } from "@/routes/health.routes";
 import { officeRouter } from "@/routes/office.routes";
 import { employeeRouter } from "@/routes/employee.routes";
@@ -16,6 +21,9 @@ import { performanceRecordRouter } from "@/routes/performanceRecord.routes";
 import { monthlyUpdateRouter } from "@/routes/monthlyUpdate.routes";
 import { notificationRouter } from "@/routes/notification.routes";
 import { scorecardRouter } from "@/routes/scorecard.routes";
+import { auditLogRouter } from "@/routes/auditLog.routes";
+import { dashboardRouter } from "@/routes/dashboard.routes";
+import { systemLogRouter } from "@/routes/systemLog.routes";
 
 export function createApp() {
   const app = express();
@@ -25,6 +33,16 @@ export function createApp() {
   app.use(express.json());
   app.use(cookieParser());
   app.use(morgan(env.nodeEnv === "development" ? "dev" : "combined"));
+
+  // Operational logging, mounted before the routers so it sees every request.
+  // Development captures DEBUG (routine reads included) because that is what
+  // you want while working; production would use INFO.
+  app.use("/api", requestLogger(env.nodeEnv === "production" ? "INFO" : "DEBUG"));
+
+  // Governance logging. Before the routers so every mutating route below is
+  // covered; it reads req.user at response-finish time, by which point the
+  // per-router `authenticate` middleware has populated it.
+  app.use("/api", auditLog);
 
   app.use("/api/health", healthRouter);
   app.use("/api/auth", authRouter);
@@ -36,9 +54,52 @@ export function createApp() {
   app.use("/api/monthly-updates", monthlyUpdateRouter);
   app.use("/api/notifications", notificationRouter);
   app.use("/api/scorecards", scorecardRouter);
+  app.use("/api/audit-log", auditLogRouter);
+  app.use("/api/dashboard", dashboardRouter);
+  app.use("/api/system-log", systemLogRouter);
 
-  app.use(notFoundHandler);
-  app.use(errorHandler);
+  // An unmatched route is exactly the kind of thing the IT admin wants to see,
+  // so it is logged rather than silently 404'd.
+  app.use((req: Request, res: Response) => {
+    notFoundHandler(req, res);
+    systemLogService.writeDetached({
+      level: "WARN",
+      category: "routing",
+      message: `No route for ${req.method} ${req.originalUrl}`,
+      userId: req.user?.userId ?? null,
+      method: req.method,
+      path: req.originalUrl,
+      status: 404,
+      ip: req.ip ?? null,
+      userAgent: req.get("user-agent") ?? null,
+    });
+  });
+
+  app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+    // An AppError is a deliberate, handled failure — a 400 or a 404. Those are
+    // the client's problem and requestLogger already recorded them. Only a
+    // genuinely unexpected error earns a CRITICAL entry with a stack trace.
+    const isHandled = err instanceof AppError;
+
+    if (!isHandled) {
+      systemLogService.writeDetached({
+        level: "CRITICAL",
+        category: "unhandled",
+        message: err instanceof Error ? err.message : String(err),
+        userId: req.user?.userId ?? null,
+        method: req.method,
+        path: req.originalUrl,
+        status: 500,
+        ip: req.ip ?? null,
+        userAgent: req.get("user-agent") ?? null,
+        context: {
+          stack: err instanceof Error ? err.stack?.slice(0, 2000) : null,
+        },
+      });
+    }
+
+    errorHandler(err, req, res, next);
+  });
 
   return app;
 }

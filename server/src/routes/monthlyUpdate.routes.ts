@@ -9,10 +9,20 @@ export const monthlyUpdateRouter = Router();
 // All monthly update routes require authentication.
 monthlyUpdateRouter.use(authenticate);
 
-// Authenticated users can view monthly updates (optionally filtered by ?officeId= / ?planId=).
-monthlyUpdateRouter.get("/", monthlyUpdateController.list);
+// Reading is limited to the roles that can act on progress. An IT Admin has
+// no business seeing an office's narrative submissions, and an Employee only
+// ever sees their own office (enforced by the scope filter, not the route).
+monthlyUpdateRouter.get(
+  "/",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  monthlyUpdateController.list,
+);
 
-monthlyUpdateRouter.get("/:id", monthlyUpdateController.getById);
+monthlyUpdateRouter.get(
+  "/:id",
+  requireRole("MAIN_ADMIN", "OFFICE_ADMIN"),
+  monthlyUpdateController.getById,
+);
 
 // Only MAIN_ADMIN and OFFICE_ADMIN submit or amend monthly updates.
 monthlyUpdateRouter.post(

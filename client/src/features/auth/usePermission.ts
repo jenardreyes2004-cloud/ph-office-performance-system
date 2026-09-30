@@ -21,6 +21,8 @@ export function usePermission() {
 
   return {
     role,
+    /** Hierarchy level, resolved server-side from the node this person heads. */
+    level: user?.accessLevel ?? null,
     isLoading,
     granted,
     can: (permission: Permission) => canForRole(role, permission),
