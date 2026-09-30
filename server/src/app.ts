@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import { ZodError } from "zod";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 
@@ -76,10 +77,16 @@ export function createApp() {
   });
 
   app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
-    // An AppError is a deliberate, handled failure — a 400 or a 404. Those are
-    // the client's problem and requestLogger already recorded them. Only a
-    // genuinely unexpected error earns a CRITICAL entry with a stack trace.
-    const isHandled = err instanceof AppError;
+    // errorHandler already deals with two classes of error deliberately:
+    // AppError (an intentional 400/404/409) and ZodError (a 422 from a bad
+    // request body). Both are the caller's problem and requestLogger has
+    // already recorded them at WARN. Only anything else is a genuine server
+    // incident, and only that earns CRITICAL with a stack trace.
+    //
+    // Getting this wrong is not cosmetic: treating every 422 as CRITICAL
+    // buried the real signal under a wall of validation noise from ordinary
+    // client mistakes.
+    const isHandled = err instanceof AppError || err instanceof ZodError;
 
     if (!isHandled) {
       systemLogService.writeDetached({
