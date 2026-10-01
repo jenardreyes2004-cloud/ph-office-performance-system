@@ -25,6 +25,7 @@ import { scorecardRouter } from "@/routes/scorecard.routes";
 import { auditLogRouter } from "@/routes/auditLog.routes";
 import { dashboardRouter } from "@/routes/dashboard.routes";
 import { systemLogRouter } from "@/routes/systemLog.routes";
+import { itOpsRouter } from "@/routes/itOps.routes";
 
 export function createApp() {
   const app = express();
@@ -58,6 +59,7 @@ export function createApp() {
   app.use("/api/audit-log", auditLogRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/system-log", systemLogRouter);
+  app.use("/api/it-ops", itOpsRouter);
 
   // An unmatched route is exactly the kind of thing the IT admin wants to see,
   // so it is logged rather than silently 404'd.
