@@ -19,6 +19,7 @@
     "check:org-search": "tsx prisma/checkOrgSearch.ts",
     "check:retention": "tsx prisma/checkLogRetention.ts",
     "check:alerting": "tsx prisma/checkSecurityAlerting.ts",
+    "check:promotion": "tsx prisma/checkSelfPromotion.ts",
     "check:hierarchy": "tsx prisma/checkOfficeHierarchy.ts"
   },
   "keywords": [],
@@ -55,6 +56,7 @@
     "typescript": "^7.0.2"
   }
 }
+
 
 
 
