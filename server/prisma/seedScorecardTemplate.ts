@@ -5,30 +5,41 @@ import { PrismaPg } from "@prisma/adapter-pg";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
+/**
+ * `npm run db:seed:scorecard -- --refresh`
+ *
+ * Re-applies the template to untouched draft scorecards. Without it the seed
+ * skips anything that already has entries, which protects real work but also
+ * means a corrected template never reaches the database.
+ */
+const REFRESH = process.argv.includes("--refresh");
+
 // ---------------------------------------------------------------------------
-// Source: photographed "OFFICE-LEVEL PERFORMANCE SCORECARD" form, PhilHealth
-// Regional Office - National Capital Region, period Jan 2025 - Dec 2025.
+// Source: the PhilHealth OFFICE-LEVEL PERFORMANCE SCORECARD form, Regional
+// Office - National Capital Region, period Jan 2025 - Dec 2025.
 //
-// IMPORTANT — two known gaps, transcribed from photos of a physical form:
+// Two gaps, tracked rather than guessed at:
 //
-// 1. Weights only total 92.5%, not 100% (Delighted Clients 42 + Excellent
-//    Process 23 + Sustainable Fund 20 + Strong Foundation 7.5). Strong
-//    Foundation shows only one measure here, which is thin next to the
-//    other three perspectives — there are almost certainly more Strong
-//    Foundation rows on a page that wasn't photographed. Add them to
-//    STRONG_FOUNDATION below once you have them; nothing else needs to
-//    change.
+// 1. Weights total 92.5%, not the 100% the form's TOTAL row prints.
+//    Delighted Clients 42 + Excellent Process 28 + Sustainable Fund 15 +
+//    Strong Foundation 7.5 = 92.5. The missing 7.5 is almost certainly a second
+//    Strong Foundation measure: that perspective shows only one row here, which
+//    is thin next to the other three, and 92.5 + 7.5 lands exactly on the
+//    printed total. Unphotographed page, so no measure is invented for it.
 //
-// 2. "Member Awareness Rating" (Strengthen Relationships with Stakeholders /
-//    PAU, LHIOs) has its grading bands cut off at the photo's edge — that
-//    entry below is seeded with everything except bands (bands: []). Add
-//    its 5 bands directly on that entry once you have that cell.
+//    checkScorecard.ts asserts this gap rather than tolerating it silently: the
+//    seed refuses to run if the total moves off 92.5 without anyone updating the
+//    expectation, so the day the missing row is transcribed the check fails and
+//    gets dealt with, instead of drifting.
 //
-// Every other band's percentage thresholds are transcribed as legibly as
-// the source photos allowed. The multiplier applied to each grade
-// (O=130%, VS=115%, S=100%, US=51%, P=50%) is verified exactly against
-// every printed "Resultant Score" on the form and matches
-// scorecard.service.ts's GRADE_MULTIPLIER table — that part is not a guess.
+// 2. "Member Awareness Rating" had its bands cut off in the first photos. Now
+//    transcribed from a legible re-shot of the same page. See the note on that
+//    entry: its printed scores do not follow the weight x multiplier rule the
+//    rest of the form obeys, and that is preserved rather than corrected.
+//
+// The grade multiplier (O=130%, VS=115%, S=100%, US=51%, P=50%) is verified
+// exactly against every printed "Resultant Score" on the form and matches
+// scorecard.service.ts's GRADE_MULTIPLIER table -- that part is not a guess.
 // ---------------------------------------------------------------------------
 
 type Grade = "OUTSTANDING" | "VERY_SATISFACTORY" | "SATISFACTORY" | "UNSATISFACTORY" | "POOR";
@@ -159,14 +170,17 @@ const DELIGHTED_CLIENTS: EntryInput[] = [
       {
         O: "at least 95% of target no. of KP MDs can cover at least 50% of the population by Dec. 2025",
         VS: "90-94% of target no. of KP MDs can cover at least 50% of the population by Dec. 2025",
-        S: "80-90% of target no. of KP MDs can cover at least 50% of the population by Dec. 2025",
+        S: "80-89% of target no. of KP MDs can cover at least 50% of the population by Dec. 2025",
         US: "KP MDs can cover 20-49% of the population by Dec. 2025",
         P: "KP MDs can cover less than 20% of the population by Dec. 2025",
       },
       {
         OUTSTANDING: { min: 95 },
         VERY_SATISFACTORY: { min: 90, max: 94.99 },
-        SATISFACTORY: { min: 80, max: 90 },
+        // Was max: 90, which overlapped VERY_SATISFACTORY at exactly 90 --
+        // so a result of precisely 90% matched two bands and auto-grading
+        // picked one by ordering rather than by rule. The form reads 80-89%.
+        SATISFACTORY: { min: 80, max: 89.99 },
         UNSATISFACTORY: { min: 20, max: 49.99 },
         POOR: { max: 19.99 },
       },
@@ -258,18 +272,99 @@ const DELIGHTED_CLIENTS: EntryInput[] = [
     }),
   },
   {
-    // INCOMPLETE — bands cut off at the photo's edge. See file header note.
     perspective: "DELIGHTED_CLIENTS",
     strategicObjective: "Strengthen Relationships with Stakeholders",
     responsibleUnit: "PAU, LHIOs",
     measure: "Member Awareness Rating",
-    performanceTarget: "95% of the PSA projected population by the end of 2025 (100%=16,862,243)",
+    performanceTarget: "≥90% of offices (CCC)",
     weightPct: 4.0,
-    bands: [], // TODO: fill in once the full form is available
+    // Transcribed verbatim from the re-shot page. The bands were cut off in
+    // the earlier photos; they are now legible.
+    //
+    // KNOWN ANOMALY -- this row does not obey the weight x multiplier rule that
+    // every other row on the form follows. At weight 4.00 the printed scores
+    // should be O 5.20 / VS 4.60 / S 4.00 / US 2.04 / P 2.00, but this row
+    // prints 5.00 / 4.00 / 4.00 / 4.00 / 2.00 / 2.00: two bands labelled "S",
+    // an "US" scoring level with "VS", and a "45-49%" tier that overlaps the
+    // "below 45.49%" tier beneath it.
+    //
+    // The grade below follows the form's own printed labels, and rawLabel keeps
+    // its wording exactly, because the printed report is the legal artefact and
+    // must match it. The scores are left to scorecard.service.ts's multiplier
+    // rather than transcribed -- and the row's own printed Resultant Score
+    // (5.20 for a 90% result) does match that multiplier, so the arithmetic
+    // path is consistent even though the band labels are not. checkScorecard
+    // asserts this explicitly so it cannot drift unnoticed.
+    bands: [
+      {
+        grade: "OUTSTANDING",
+        minPct: 100,
+        rawLabel: "Outstanding = 100% of offices",
+      },
+      {
+        grade: "SATISFACTORY",
+        minPct: 90,
+        maxPct: 99.99,
+        rawLabel: "90% = S",
+      },
+      {
+        grade: "UNSATISFACTORY",
+        minPct: 80,
+        maxPct: 89.99,
+        rawLabel: "80-89% = US",
+      },
+      {
+        grade: "VERY_SATISFACTORY",
+        minPct: 70,
+        maxPct: 79.99,
+        rawLabel: "70-80% = VS",
+      },
+      {
+        grade: "SATISFACTORY",
+        minPct: 50,
+        maxPct: 69.99,
+        rawLabel: "50-69% = S",
+      },
+      {
+        grade: "POOR",
+        minPct: 45,
+        maxPct: 49.99,
+        rawLabel: "45-49% = Below",
+      },
+      {
+        grade: "POOR",
+        maxPct: 44.99,
+        rawLabel: "AND below 45.49% = P",
+      },
+    ],
   },
 ];
 
+// Moved out of SUSTAINABLE_FUND into EXCELLENT_PROCESS. The first photos were
+// read as Sustainable Fund; a clearer shot of the same page shows this row's
+// column under the EXCELLENT PROCESS banner, alongside GAD Plans and the two
+// claims measures, with Sustainable Fund covering only the three
+// budget-utilization rates. It does not change the overall weight total, but it
+// does change which perspective a 5% share belongs to, and perspective is what
+// the scorecard rolls up by.
+const PREMIUM_COLLECTION: EntryInput = {
+  perspective: "EXCELLENT_PROCESS",
+  strategicObjective: "Ensure robust fiscal management through strategic resource allocation",
+  responsibleUnit: "Collection Section, LHIOs",
+  measure: "Total Amount of Premium Collection (Direct Contributors)",
+  performanceTarget: "125,777,641 (CY2025 target)",
+  weightPct: 5.0,
+  bands: standardBands(5.0, {
+    O: "99-100% of target amount collected on time",
+    VS: "95-98% of target amount collected on time",
+    S: "90-94% of target amount collected on time",
+    US: "85-89% of target amount collected on time",
+    P: "84% and below of target amount collected on time",
+  }),
+};
+
 const EXCELLENT_PROCESS: EntryInput[] = [
+  PREMIUM_COLLECTION,
   {
     perspective: "EXCELLENT_PROCESS",
     strategicObjective: "Ensure operational effectiveness and efficiency",
@@ -435,21 +530,6 @@ const SUSTAINABLE_FUND: EntryInput[] = [
       },
     ),
   },
-  {
-    perspective: "SUSTAINABLE_FUND",
-    strategicObjective: "Ensure robust fiscal management through strategic resource allocation",
-    responsibleUnit: "Collection Section, LHIOs",
-    measure: "Total Amount of Premium Collection (Direct Contributors)",
-    performanceTarget: "125,777,641",
-    weightPct: 5.0,
-    bands: standardBands(5.0, {
-      O: "99-100% of target amount collected on time",
-      VS: "95-98% of target amount collected on time",
-      S: "90-94% of target amount collected on time",
-      US: "85-89% of target amount collected on time",
-      P: "84% and below of target amount collected on time",
-    }),
-  },
 ];
 
 const STRONG_FOUNDATION: EntryInput[] = [
@@ -537,9 +617,39 @@ async function main() {
     const existingEntryCount = await prisma.scorecardEntry.count({
       where: { officeScorecardId: officeScorecard.id },
     });
+
+    // The skip below protects real work: once an office has started filling in
+    // its scorecard, re-running the seed must not overwrite it. But it also
+    // meant a corrected template could never be applied -- the first run
+    // silently locked the data forever, which is how two transcription fixes sat
+    // in the seed file looking applied while the database still held the old
+    // values.
+    //
+    // --refresh re-seeds only scorecards that are untouched: DRAFT with no
+    // results recorded. Anything an office has started working on is still
+    // skipped, so this cannot destroy real input.
     if (existingEntryCount > 0) {
-      console.log(`Skipping ${office.name} — scorecard already has ${existingEntryCount} entries.`);
-      continue;
+      const hasResults = await prisma.scorecardResult.count({
+        where: { entry: { officeScorecardId: officeScorecard.id } },
+      });
+      if (!REFRESH || hasResults > 0 || officeScorecard.status !== "DRAFT") {
+        console.log(
+          `Skipping ${office.name} - scorecard already has ${existingEntryCount} entries` +
+            (hasResults > 0 ? " and recorded results." : "."),
+        );
+        continue;
+      }
+      // Untouched draft: safe to replace wholesale.
+      await prisma.scorecardBand.deleteMany({
+        where: { entry: { officeScorecardId: officeScorecard.id } },
+      });
+      await prisma.scorecardResult.deleteMany({
+        where: { entry: { officeScorecardId: officeScorecard.id } },
+      });
+      await prisma.scorecardEntry.deleteMany({
+        where: { officeScorecardId: officeScorecard.id },
+      });
+      console.log(`Refreshing ${office.name} - untouched draft, replacing template entries.`);
     }
 
     let sortOrder = 0;

@@ -22,7 +22,8 @@
     "check:promotion": "tsx prisma/checkSelfPromotion.ts",
     "check:accounts": "tsx prisma/checkAccountManagement.ts",
     "check:hierarchy": "tsx prisma/checkOfficeHierarchy.ts",
-    "check:all": "npm run typecheck && npm run check:access && npm run check:scoping && npm run check:hierarchy && npm run check:org-search && npm run check:retention && npm run check:alerting && npm run check:promotion && npm run check:accounts"
+    "check:all": "npm run typecheck && npm run check:access && npm run check:scoping && npm run check:hierarchy && npm run check:org-search && npm run check:retention && npm run check:alerting && npm run check:promotion && npm run check:accounts && npm run check:scorecard",
+    "check:scorecard": "tsx prisma/checkScorecardTemplate.ts"
   },
   "keywords": [],
   "author": "",
