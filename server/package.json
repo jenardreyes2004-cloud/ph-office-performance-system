@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.checks.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -21,7 +21,8 @@
     "check:alerting": "tsx prisma/checkSecurityAlerting.ts",
     "check:promotion": "tsx prisma/checkSelfPromotion.ts",
     "check:accounts": "tsx prisma/checkAccountManagement.ts",
-    "check:hierarchy": "tsx prisma/checkOfficeHierarchy.ts"
+    "check:hierarchy": "tsx prisma/checkOfficeHierarchy.ts",
+    "check:all": "npm run typecheck && npm run check:access && npm run check:scoping && npm run check:hierarchy && npm run check:org-search && npm run check:retention && npm run check:alerting && npm run check:promotion && npm run check:accounts"
   },
   "keywords": [],
   "author": "",
@@ -57,8 +58,3 @@
     "typescript": "^7.0.2"
   }
 }
-
-
-
-
-

@@ -357,16 +357,49 @@ async function main() {
 
   // This run deliberately provokes failed sign-ins, and the server logs every
   // one. Left behind, they accumulate into a genuine repeated-failure
-  // signature and `check:alerting` then correctly reports a real attack that
-  // was never there -- one check poisoning another. Removed here for the same
-  // reason the alerting check cleans up its own side effects.
+  // signature that `check:alerting` then reports as a real attack that never
+  // happened -- one check poisoning another. Removed here for the same reason
+  // the alerting check cleans up its own side effects.
+  //
+  // Three kinds of residue, not one. The background scan runs on a 60s cycle,
+  // so deleting the auth rows stops *future* alerts, but scans that already
+  // fired during this run have left their own 'security' rows and notified a
+  // real IT admin about a test account that no longer exists. Left in place,
+  // that alarm is indistinguishable from a genuine one and would be the most
+  // misleading row in the dashboard.
   await prisma.systemLog.deleteMany({
     where: { category: "auth", createdAt: { gte: runStartedAt } },
   });
-  const leftoverAuth = await prisma.systemLog.count({
-    where: { category: "auth", createdAt: { gte: runStartedAt } },
+  await prisma.systemLog.deleteMany({
+    where: { category: "security", createdAt: { gte: runStartedAt } },
   });
-  check("no auth log rows left behind", leftoverAuth === 0, `${leftoverAuth} remain`);
+  await prisma.notification.deleteMany({
+    where: {
+      createdAt: { gte: runStartedAt },
+      OR: [
+        { message: { contains: "failed sign-in attempts" } },
+        { message: { contains: "credential stuffing" } },
+      ],
+    },
+  });
+
+  const leftoverLogs = await prisma.systemLog.count({
+    where: {
+      createdAt: { gte: runStartedAt },
+      OR: [{ category: "auth" }, { category: "security" }],
+    },
+  });
+  check("no auth or security log rows left behind", leftoverLogs === 0, `${leftoverLogs} remain`);
+  const leftoverAlerts = await prisma.notification.count({
+    where: {
+      createdAt: { gte: runStartedAt },
+      OR: [
+        { message: { contains: "failed sign-in attempts" } },
+        { message: { contains: "credential stuffing" } },
+      ],
+    },
+  });
+  check("no security alerts left in the IT admin's inbox", leftoverAlerts === 0, `${leftoverAlerts} remain`);
 
   const leftover = await prisma.user.count({ where: { email: { in: createdEmails } } });
   check("no test accounts left behind", leftover === 0, `${leftover} remain`);

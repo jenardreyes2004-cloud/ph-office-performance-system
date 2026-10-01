@@ -39,7 +39,7 @@ const TEST_PASSWORD = "Test@1234";
 const LEVELS: {
   email: string;
   name: string;
-  role: "MAIN_ADMIN" | "OFFICE_ADMIN" | "EMPLOYEE";
+  role: "MAIN_ADMIN" | "OFFICE_ADMIN" | "IT_ADMIN" | "EMPLOYEE";
   level:
     | "HIERARCHY_HEAD"
     | "DEPARTMENT_HEAD"

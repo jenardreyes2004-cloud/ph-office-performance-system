@@ -1,0 +1,17 @@
+{
+  // The check suites live in prisma/ and are excluded from the main tsconfig
+  // (rootDir is ./src, include is src/**/*.ts). That meant a type error in a
+  // check script passed `npm run build` silently and only appeared when the
+  // script was run -- a duplicate const declaration did exactly that, and the
+  // build was green while the check could not execute.
+  //
+  // These scripts are what proves the system behaves, so a type error in one
+  // should fail fast rather than at test time.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["prisma/**/*.ts", "src/**/*.ts"]
+}
