@@ -324,7 +324,7 @@ export function ItOpsPage() {
           <CardHeader>
             <CardTitle className="text-base">Accounts by role</CardTitle>
             <CardDescription>
-              No in-app account management yet — these are seeded accounts.
+              Live count. Manage these under Accounts.
             </CardDescription>
           </CardHeader>
           <CardContent>

@@ -14,10 +14,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CreateAccountDialog } from "@/features/accounts/CreateAccountDialog";
+import { ChangeRoleDialog } from "@/features/accounts/ChangeRoleDialog";
+import { ResetPasswordDialog } from "@/features/accounts/ResetPasswordDialog";
+import { allowedActions, noActionReason, type AccountLike } from "@/features/accounts/authority";
 import { refusalMessage, useAccounts, useSetActive } from "@/features/accounts/hooks";
 import { useAuth } from "@/features/auth/AuthContext";
 import { ACCESS_LEVEL_LABELS, can } from "@/lib/permissions";
-import type { AccessLevel } from "@/types";
 
 /**
  * Accounts, for the two roles that hold the systems function.
@@ -54,16 +56,10 @@ export function AccountsPage() {
   const lastAdmin =
     active.filter((a) => a.role === "MAIN_ADMIN").length === 1 ? active.find((a) => a.role === "MAIN_ADMIN") : null;
 
-  // The server enforces all of this; hiding the controls is a courtesy so the
-  // UI does not offer an action that is guaranteed to be refused.
-  const canToggle = (account: { id: string; level: AccessLevel; isSuperAdmin: boolean }) => {
-    if (!canManage) return false;
-    if (account.id === user?.id) return false;
-    if (user?.role !== "MAIN_ADMIN" && (account.isSuperAdmin || account.level !== "EMPLOYEE")) {
-      return false;
-    }
-    return true;
-  };
+  // Mirrors the server guard so a refused action is never offered. The server
+  // still decides; see features/accounts/authority.ts.
+  const actor = { id: user?.id, role: user?.role };
+  const actionsFor = (account: AccountLike) => allowedActions(actor, account);
 
   const refusal = refusalMessage(setActive.error);
 
@@ -147,15 +143,12 @@ export function AccountsPage() {
             </TableHeader>
             <TableBody>
               {rows.map((account) => {
-                const toggleable = canToggle(account);
-                const isSelf = account.id === user?.id;
+                const actions = actionsFor(account);
+                const reason = noActionReason(actor, account);
                 return (
                   <TableRow key={account.id}>
                     <TableCell className="font-medium">
                       {account.name}
-                      {isSelf && (
-                        <span className="ml-2 text-xs text-muted-foreground">(you)</span>
-                      )}
                     </TableCell>
                     <TableCell className="text-xs">{account.email}</TableCell>
                     <TableCell className="text-xs">{account.role.replace(/_/g, " ")}</TableCell>
@@ -173,23 +166,33 @@ export function AccountsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {toggleable ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={setActive.isPending}
-                          onClick={() =>
-                            setActive.mutate({
-                              id: account.id,
-                              isActive: !account.isActive,
-                            })
-                          }
-                        >
-                          {account.isActive ? "Disable" : "Re-enable"}
-                        </Button>
+                      {actions.length > 0 ? (
+                        <div className="flex justify-end gap-1">
+                          {actions.includes("resetPassword") && (
+                            <ResetPasswordDialog account={account} />
+                          )}
+                          {actions.includes("changeRole") && (
+                            <ChangeRoleDialog account={account} />
+                          )}
+                          {actions.includes("setActive") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={setActive.isPending}
+                              onClick={() =>
+                                setActive.mutate({
+                                  id: account.id,
+                                  isActive: !account.isActive,
+                                })
+                              }
+                            >
+                              {account.isActive ? "Disable" : "Re-enable"}
+                            </Button>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-xs text-muted-foreground">
-                          {isSelf ? "Your own account" : "—"}
+                          {reason ?? "—"}
                         </span>
                       )}
                     </TableCell>
