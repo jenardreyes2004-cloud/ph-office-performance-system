@@ -22,11 +22,13 @@ export type Permission =
   | "auditLog.view"
   | "systemLog.view"
   | "itOps.view"
+  | "accounts.view"
   | "scorecards.view"
   | "access.view"
   // Writes
   | "offices.manage"
   | "employees.manage"
+  | "accounts.manage"
   | "plans.manage"
   | "metrics.manage"
   | "performance.manage"
@@ -52,8 +54,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     "auditLog.view",
     "systemLog.view",
     "itOps.view",
+    "accounts.view",
     "offices.manage",
     "employees.manage",
+    "accounts.manage",
     "plans.manage",
     "metrics.manage",
     "performance.manage",
@@ -80,17 +84,19 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     "scorecards.manage",
   ],
 
-  // Owns the employee roster and the notification channel. No plan or
+  // Owns the employee roster, the notification channel, and accounts. No plan or
   // reporting access.
   IT_ADMIN: [
     "dashboard.view",
     "employees.view",
+    "accounts.view",
     "notifications.view",
     "auditLog.view",
     "systemLog.view",
     "itOps.view",
     "access.view",
     "employees.manage",
+    "accounts.manage",
     "notifications.send",
   ],
 
@@ -179,6 +185,12 @@ export const PERMISSION_GROUPS: {
         description: "Add employees, edit profiles, and deactivate or reactivate them.",
       },
       {
+        permission: "accounts.manage",
+        label: "Manage accounts",
+        description:
+          "Issue and disable logins, and change an account's role. Granting authority needs the hierarchy head.",
+      },
+      {
         permission: "metrics.manage",
         label: "Manage performance metrics",
         description: "Define the weighted metrics used to score performance.",
@@ -247,6 +259,11 @@ export const PERMISSION_GROUPS: {
         permission: "itOps.view",
         label: "View the IT operations dashboard",
         description: "System health, error rate, and sign-in threat overview.",
+      },
+      {
+        permission: "accounts.view",
+        label: "View accounts",
+        description: "See who has a login, and the authority each account holds.",
       },
     ],
   },

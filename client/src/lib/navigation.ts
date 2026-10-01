@@ -137,6 +137,12 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         anyOf: ["itOps.view"],
       },
       {
+        to: "/accounts",
+        label: "Accounts",
+        description: "Logins, roles, and access",
+        anyOf: ["accounts.view"],
+      },
+      {
         to: "/system-log",
         label: "System Log",
         description: "Raw server events",

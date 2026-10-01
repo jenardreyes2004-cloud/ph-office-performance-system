@@ -20,6 +20,7 @@ import { OfficeScorecardPage } from "@/pages/reports/OfficeScorecardPage";
 import { ReportsPage } from "@/pages/reports/ReportsPage";
 import { SystemLogPage } from "@/pages/systemLog/SystemLogPage";
 import { ItOpsPage } from "@/pages/itOps/ItOpsPage";
+import { AccountsPage } from "@/pages/accounts/AccountsPage";
 import { ROUTE_REDIRECTS } from "@/lib/navigation";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { RequirePermission } from "@/routes/RequirePermission";
@@ -94,6 +95,9 @@ function App() {
                 </Route>
                 <Route element={<RequirePermission anyOf={["itOps.view"]} />}>
                   <Route path="/it-ops" element={<ItOpsPage />} />
+                </Route>
+                <Route element={<RequirePermission anyOf={["accounts.view"]} />}>
+                  <Route path="/accounts" element={<AccountsPage />} />
                 </Route>
                 <Route element={<RequirePermission anyOf={["systemLog.view"]} />}>
                   <Route path="/system-log" element={<SystemLogPage />} />
