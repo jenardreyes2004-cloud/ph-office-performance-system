@@ -21,6 +21,7 @@ export type Permission =
   | "notifications.view"
   | "auditLog.view"
   | "systemLog.view"
+  | "itOps.view"
   | "scorecards.view"
   | "access.view"
   // Writes
@@ -50,6 +51,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     "access.view",
     "auditLog.view",
     "systemLog.view",
+    "itOps.view",
     "offices.manage",
     "employees.manage",
     "plans.manage",
@@ -86,6 +88,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
     "notifications.view",
     "auditLog.view",
     "systemLog.view",
+    "itOps.view",
     "access.view",
     "employees.manage",
     "notifications.send",
@@ -239,6 +242,11 @@ export const PERMISSION_GROUPS: {
         permission: "systemLog.view",
         label: "View the system log",
         description: "Server health, sign-in activity and errors.",
+      },
+      {
+        permission: "itOps.view",
+        label: "View the IT operations dashboard",
+        description: "System health, error rate, and sign-in threat overview.",
       },
     ],
   },

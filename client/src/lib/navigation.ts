@@ -131,9 +131,15 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         anyOf: ["auditLog.view"],
       },
       {
+        to: "/it-ops",
+        label: "System Health",
+        description: "Uptime, errors, sign-in threats",
+        anyOf: ["itOps.view"],
+      },
+      {
         to: "/system-log",
         label: "System Log",
-        description: "Server health and events",
+        description: "Raw server events",
         anyOf: ["systemLog.view"],
       },
       {
