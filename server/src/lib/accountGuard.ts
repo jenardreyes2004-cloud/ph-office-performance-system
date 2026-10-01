@@ -1,5 +1,7 @@
 import type { AccessLevel, OrgNodeKind, UserRole } from "@/generated/prisma/client";
 
+import { AppError } from "@/middleware/errorHandler";
+
 /**
  * Guards changes to an account's authority.
  *
@@ -213,7 +215,27 @@ export function evaluateAccountChange(
     };
   }
 
-  // 6. A caller may not edit an account at or above their own standing. This
+  // 6. The IT admin is a systems function, not a standing, so the ladder
+  //    cannot rank it. It may manage the credentials of people who hold no
+  //    organizational authority -- that is its job -- and nothing else.
+  //
+  //    Without this branch the general rule below would refuse it entirely,
+  //    since an IT admin resolves to EMPLOYEE level and every target ranks at
+  //    least as high. The boundary is drawn at headship: locking the account of
+  //    an office head would be a lever over the hierarchy, which is exactly
+  //    what the systems role must not have.
+  if (actor.isItAdmin && !actor.isSuperAdmin) {
+    if (before > LEVEL_RANK.EMPLOYEE) {
+      return {
+        allowed: false,
+        code: "PEER_OR_ABOVE",
+        reason: "The IT administrator role manages logins, not headships. Ask the hierarchy head.",
+      };
+    }
+    return { ...ALLOW, reason: "Systems function: manages credentials of an account holding no authority." };
+  }
+
+  // 7. A caller may not edit an account at or above their own standing. This
   //    is what stops an office head demoting a department head, or an IT
   //    admin disabling a super admin.
   if (!actor.isSuperAdmin && before >= rank(actor.level)) {
@@ -224,7 +246,7 @@ export function evaluateAccountChange(
     };
   }
 
-  // 7. The last active super admin cannot be demoted or deactivated, by
+  // 8. The last active super admin cannot be demoted or deactivated, by
   //    anyone. Without this the system has an unrecoverable lockout state:
   //    nobody left who could undo it.
   const losesSuperAdmin =
@@ -286,12 +308,21 @@ export function assertAccountChange(
   }
 }
 
-export class AccountGuardError extends Error {
+/**
+ * Thrown when a change is refused. Carries the code as well as the message, so
+ * a client can distinguish "you cannot edit yourself" from "that would remove
+ * the last hierarchy head" without parsing English.
+ *
+ * Extends AppError so the existing error handler renders it as a 403 with the
+ * reason. When this was a bare Error the guard still refused correctly, but
+ * every refusal surfaced as a 500 -- indistinguishable from a crash, which
+ * would have trained everyone to ignore it.
+ */
+export class AccountGuardError extends AppError {
   code: GuardCode;
-  statusCode = 403;
 
   constructor(result: GuardResult) {
-    super(result.reason);
+    super(result.reason, 403);
     this.code = result.code;
     Object.setPrototypeOf(this, AccountGuardError.prototype);
   }

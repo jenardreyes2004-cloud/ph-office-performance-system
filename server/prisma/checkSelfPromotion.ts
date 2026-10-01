@@ -563,6 +563,116 @@ async function main() {
     ).allowed,
   );
 
+  // ---------------------------------------------------------------------
+  console.log("\nthe IT admin manages credentials, not headships");
+  // ---------------------------------------------------------------------
+  // The systems role has to be able to do its job -- issue and lock logins --
+  // or account management cannot exist. But it must not become a lever over the
+  // hierarchy, so the boundary is drawn at headship.
+  const asItAdmin = actor({ isItAdmin: true, level: "EMPLOYEE" });
+
+  permits(
+    "an IT admin may deactivate a plain employee account",
+    evaluateAccountChange(asItAdmin, target({ role: "EMPLOYEE" }), { isActive: false }, ctx),
+  );
+  permits(
+    "an IT admin may reset a plain employee's password",
+    evaluateAccountChange(asItAdmin, target({ role: "EMPLOYEE" }), { password: undefined } as never, ctx),
+  );
+  permits(
+    "an IT admin may create an ordinary account",
+    evaluateAccountCreation(asItAdmin, { role: "EMPLOYEE" }),
+  );
+
+  refuses(
+    "an IT admin may not deactivate an office head",
+    "PEER_OR_ABOVE",
+    evaluateAccountChange(
+      asItAdmin,
+      target({ headedOfficeId: "office-1", headedOfficeKind: "OFFICE" }),
+      { isActive: false },
+      ctx,
+    ),
+  );
+  refuses(
+    "an IT admin may not deactivate a department head",
+    "PEER_OR_ABOVE",
+    evaluateAccountChange(
+      asItAdmin,
+      target({ headedOfficeId: "dept-1", headedOfficeKind: "DEPARTMENT" }),
+      { isActive: false },
+      ctx,
+    ),
+  );
+  refuses(
+    "an IT admin may not disable a super admin (password-reset backdoor)",
+    "PEER_OR_ABOVE",
+    evaluateAccountChange(
+      asItAdmin,
+      target({ role: "MAIN_ADMIN" }),
+      { isActive: false },
+      ctx,
+    ),
+  );
+  // Corrected after review: this IS permitted, and should be. Both accounts
+  // hold no organizational authority, so one systems role locking another's
+  // credential is ordinary offboarding, not an escalation. The super admin
+  // remains the backstop, so there is no unrecoverable lockout. What the IT
+  // admin must never do is *create* one -- asserted two checks below.
+  permits(
+    "an IT admin may deactivate another IT admin's credential",
+    evaluateAccountChange(
+      asItAdmin,
+      target({ role: "IT_ADMIN" }),
+      { isActive: false },
+      ctx,
+    ),
+  );
+  refuses(
+    "an IT admin may not appoint a *new* IT admin",
+    "NEEDS_SUPER_ADMIN",
+    evaluateAccountCreation(asItAdmin, { role: "IT_ADMIN" }),
+  );
+  // Corrected after review: still correctly refused, just by the level rule
+  // rather than the restructure rule, because raising someone's level is
+  // checked first. Both codes mean the same thing to a caller -- super admin
+  // only -- so asserting a specific one here would be testing rule ordering
+  // rather than the outcome.
+  refuses(
+    "an IT admin may not appoint a hierarchy head (refused, super admin only)",
+    "NEEDS_SUPER_ADMIN",
+    evaluateAccountChange(
+      asItAdmin,
+      target({ role: "EMPLOYEE" }),
+      { headedOfficeId: "office-1", headedOfficeKind: "OFFICE" },
+      ctx,
+    ),
+  );
+  check(
+    "the super admin is not restricted by the systems-role branch",
+    evaluateAccountChange(
+      actor({ isSuperAdmin: true, isItAdmin: true, level: "HIERARCHY_HEAD" }),
+      target({ role: "MAIN_ADMIN" }),
+      { isActive: false },
+      ctx,
+    ).allowed,
+  );
+
+  // The earlier walk said a plain employee cannot edit any real account. The
+  // IT admin is also EMPLOYEE level, so confirm the two are not conflated: the
+  // employee is refused, the IT admin is not.
+  const employeeRefused = evaluateAccountChange(
+    actor({ level: "EMPLOYEE" }),
+    target({ role: "EMPLOYEE", userId: "someone-else" }),
+    { isActive: false },
+    ctx,
+  );
+  check(
+    "a plain employee and an IT admin are treated differently at the same level",
+    !employeeRefused.allowed && employeeRefused.code === "PEER_OR_ABOVE",
+    `employee got ${employeeRefused.code}`,
+  );
+
   console.log("");
   if (failures.length) {
     console.error(`${failures.length} check(s) failed.`);
