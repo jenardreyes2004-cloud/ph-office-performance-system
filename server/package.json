@@ -22,13 +22,14 @@
     "check:promotion": "tsx prisma/checkSelfPromotion.ts",
     "check:accounts": "tsx prisma/checkAccountManagement.ts",
     "check:hierarchy": "tsx prisma/checkOfficeHierarchy.ts",
-    "check:all": "npm run typecheck && npm run check:access && npm run check:scoping && npm run check:hierarchy && npm run check:org-search && npm run check:retention && npm run check:alerting && npm run check:promotion && npm run check:accounts && npm run check:scorecard && npm run check:scorecard-scope && npm run check:audit-ids && npm run check:rate-limit && npm run check:org-detail",
+    "check:all": "npm run typecheck && npm run check:access && npm run check:scoping && npm run check:hierarchy && npm run check:org-search && npm run check:retention && npm run check:alerting && npm run check:promotion && npm run check:accounts && npm run check:scorecard && npm run check:scorecard-scope && npm run check:audit-ids && npm run check:rate-limit && npm run check:org-detail && npm run check:layout",
     "check:scorecard": "tsx prisma/checkScorecardTemplate.ts",
     "dev:test": "cross-env NODE_ENV=test tsx watch src/server.ts",
     "check:scorecard-scope": "tsx prisma/checkScorecardScope.ts",
     "check:audit-ids": "tsx prisma/checkAuditIds.ts",
     "check:rate-limit": "tsx prisma/checkLoginRateLimit.ts",
-    "check:org-detail": "tsx prisma/checkOrgDetail.ts"
+    "check:org-detail": "tsx prisma/checkOrgDetail.ts",
+    "check:layout": "tsx prisma/checkRadialLayout.ts"
   },
   "keywords": [],
   "author": "",

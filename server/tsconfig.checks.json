@@ -13,5 +13,14 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["prisma/**/*.ts", "src/**/*.ts"]
+  "include": ["prisma/**/*.ts", "src/**/*.ts"],
+  // checkRadialLayout.ts exercises the client-side chart layout, so it imports
+  // across into client/. That is outside this tsconfig's rootDir and its "@/"
+  // alias points at server/src, so including it fails on module resolution
+  // rather than on anything real.
+  //
+  // The layout is still typechecked -- by the client build, which compiles
+  // OrgGraph.tsx and therefore everything it pulls in. This file only has to
+  // prove the geometry behaves.
+  "exclude": ["prisma/checkRadialLayout.ts"]
 }

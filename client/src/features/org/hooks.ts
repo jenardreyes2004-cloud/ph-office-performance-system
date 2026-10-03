@@ -1,89 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import type { AccessLevel, OrgNodeKind } from "@/types";
+import type {
+  MoveImpact,
+  NodeOverview,
+  OrgTreeNode,
+} from "./types";
 
-export interface OrgTreeNode {
-  id: string;
-  name: string;
-  code: string;
-  kind: OrgNodeKind;
-  parentId: string | null;
-  employeeCount: number;
-  totalEmployeeCount: number;
-  isScored: boolean;
-  children?: OrgTreeNode[];
-  scorecard?: {
-    id: string;
-    status: string;
-    officeRating: string | null;
-    totalScore: string | number | null;
-    finalizedAt: string | null;
-  } | null;
-}
-
-/** What a caller may see of a node. Mirrors the server's orgNodeDetailLevel. */
-export type DetailLevel = "FULL" | "PEOPLE" | "NAMES";
-
-export interface OrgPerson {
-  id: string;
-  firstName: string;
-  lastName: string;
-  position: string | null;
-  accessLevel: AccessLevel;
-  isActive?: boolean;
-  headedOffice?: { id: string; name: string } | null;
-}
-
-export interface OrgPlanSummary {
-  id: string;
-  title: string;
-  status: string;
-  periodStart: string;
-  periodEnd: string;
-  assignedCount: number;
-}
-
-export interface NodeOverview {
-  id: string;
-  name: string;
-  code: string;
-  kind: OrgNodeKind;
-  parentId: string | null;
-  parentName: string | null;
-  archivedAt: string | null;
-  detailLevel: DetailLevel;
-  // Present only at FULL. Absent keys, not null: a NAMES node carries nothing
-  // to leak, so there is nothing for the client to accidentally render.
-  head?: OrgPerson | null;
-  managers?: OrgPerson[];
-  employees?: OrgPerson[];
-  employeeCount?: number;
-  childCount?: number;
-  description?: string | null;
-  plans?: OrgPlanSummary[];
-  scorecard?: {
-    id: string;
-    status: string;
-    period: { label: string };
-    totalWeight: number | null;
-    totalScore: number | null;
-    officeRating: string | null;
-    finalizedAt: string | null;
-  } | null;
-  canSeeWork?: boolean;
-}
-
-export interface MoveImpact {
-  officeId: string;
-  officeName: string;
-  officeCode: string;
-  newParentId: string | null;
-  movedCount: number;
-  headsGainingScope: OrgPerson[];
-  headsLosingScope: OrgPerson[];
-  unchanged: number;
-}
+export type {
+  DetailLevel,
+  MoveImpact,
+  NodeOverview,
+  OrgPerson,
+  OrgPlanSummary,
+  OrgTreeNode,
+} from "./types";
 
 const KEY = ["org"] as const;
 

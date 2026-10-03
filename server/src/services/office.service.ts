@@ -96,7 +96,7 @@ export const officeService = {
   // The full tree, for the org-chart view. Each node carries its own employee
   // count and scorecard summary so the UI can render the hierarchy without
   // walking back to the flat list.
-  async tree(periodId?: string) {
+  async tree(periodId?: string, allowedRootIds?: string[] | null) {
     const offices = await prisma.office.findMany({
       where: { archivedAt: null },
       orderBy: { name: "asc" },
@@ -154,6 +154,41 @@ export const officeService = {
       }
     }
 
+    // Root the chart at what the caller actually runs.
+    //
+    // The tree used to be returned whole and only the detail panel was scoped.
+    // That leaked exactly what the panel withheld -- that a department exists,
+    // how many people are in it, and where it sits.
+    //
+    // Scoping means *promoting* the allowed node to a root, not filtering the
+    // root list: the department head's own node sits under OVP, so filtering
+    // would leave them with an empty chart. It also means detaching it from its
+    // parent, because leaving the parent link in place would reintroduce the
+    // path above the caller that the scoping exists to hide.
+    let allowed = roots;
+    if (allowedRootIds) {
+      allowed = [];
+      for (const wanted of allowedRootIds) {
+        let target: OfficeNode | undefined;
+        for (const candidate of byId.values()) {
+          if (candidate.id === wanted) {
+            target = candidate;
+            break;
+          }
+        }
+        if (!target) continue;
+        // Detach from the parent so nothing above this node is implied.
+        if (target.parentId) {
+          const parent = byId.get(target.parentId);
+          if (parent) {
+            parent.children = parent.children.filter((c) => c.id !== target.id);
+          }
+          target.parentId = null;
+        }
+        allowed.push(target);
+      }
+    }
+
     // Post-order walk so every node is summed after its children are done.
     const rollUp = (node: OfficeNode): number => {
       let total = node.employeeCount;
@@ -161,9 +196,9 @@ export const officeService = {
       node.totalEmployeeCount = total;
       return total;
     };
-    for (const root of roots) rollUp(root);
+    for (const root of allowed) rollUp(root);
 
-    return roots;
+    return allowed;
   },
 
   async getById(id: string) {

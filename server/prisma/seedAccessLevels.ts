@@ -97,6 +97,10 @@ const LEVELS: {
     person: "Farid Aquino",
     role: "EMPLOYEE",
     level: "EMPLOYEE",
+    // On a sub-unit, not the root. Attached to OVP, a plain employee is
+    // answerable for the entire organization, which is the opposite of the
+    // point -- an employee runs nothing.
+    attachedOfficeCode: "GSU",
   },
   {
     // The awkward one, and deliberately so.

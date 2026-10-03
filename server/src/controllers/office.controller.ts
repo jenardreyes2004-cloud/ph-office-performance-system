@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { officeService } from "@/services/office.service";
+import { orgTreeRootIds, resolveActor } from "@/lib/scope";
 import { createOfficeSchema, updateOfficeSchema } from "@/schemas/office.schema";
 
 export const officeController = {
@@ -12,9 +13,15 @@ export const officeController = {
 
   // Full hierarchy, optionally annotated with scorecards for one period:
   // GET /api/offices/tree?periodId=<uuid>
+  //
+  // Rooted at what the caller runs: a node head sees their branch and nothing
+  // else, an employee sees only their own office, and the super admin sees the
+  // whole organization. The chart being reachable by everyone is not the same
+  // as everyone seeing every branch.
   async tree(req: Request, res: Response) {
     const periodId = typeof req.query.periodId === "string" ? req.query.periodId : undefined;
-    const tree = await officeService.tree(periodId);
+    const scope = await resolveActor(req.user!.userId, req.user!.role);
+    const tree = await officeService.tree(periodId, orgTreeRootIds(scope));
     res.json(tree);
   },
 

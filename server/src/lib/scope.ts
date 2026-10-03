@@ -135,6 +135,35 @@ export function canSeeOfficeWork(scope: ActorScope, officeId: string | null): bo
   return orgNodeDetailLevel(scope, officeId) === "FULL";
 }
 
+/**
+ * Which offices the organization chart should render for this caller.
+ *
+ * The chart used to be public in full, and only the detail panel was scoped.
+ * That leaked structure the detail panel was carefully withholding: you could
+ * see that a department existed, how many people were in it, and where it sat,
+ * without ever opening it.
+ *
+ * So the chart is rooted instead. A node head sees the branch they run and
+ * everything beneath it, and nothing else. An employee sees only the office
+ * they are attached to. The super admin sees the whole organization, which is
+ * the one case where seeing everything is the job.
+ *
+ * Returns null for "unrestricted".
+ */
+export function orgTreeRootIds(scope: ActorScope): string[] | null {
+  if (scope.isSuperAdmin) return null;
+
+  // The systems role reads the whole roster by name and nothing about
+  // reporting, so it needs the whole structure to do that. It is still capped
+  // at PEOPLE on every node by orgNodeDetailLevel.
+  if (scope.role === "IT_ADMIN") return null;
+
+  // Their own node is the root of what they run. An employee has no headship,
+  // so it falls back to the office they are attached to.
+  const root = scope.headedOfficeId ?? scope.officeId;
+  return root ? [root] : [NOTHING];
+}
+
 export async function resolveActor(userId: string, role: UserRole): Promise<ActorScope> {
   const employee = await prisma.employee.findUnique({
     where: { userId },

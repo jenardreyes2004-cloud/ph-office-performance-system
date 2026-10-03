@@ -2,8 +2,9 @@ import { useState } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { OrgChart, OrgSearch } from "@/features/org/OrgChart";
+import { OrgTree } from "@/features/org/OrgTree";
 import { OrgNodeDrawer } from "@/features/org/OrgNodeDrawer";
+import { OrgSearch } from "@/features/org/OrgSearch";
 import { useOrgTree, type OrgTreeNode } from "@/features/org/hooks";
 
 /**
@@ -24,7 +25,8 @@ import { useOrgTree, type OrgTreeNode } from "@/features/org/hooks";
 export function OrganizationPage() {
   const { data: tree, isLoading, isError } = useOrgTree();
   const [selected, setSelected] = useState<OrgTreeNode | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  // The graph wants the full page width until someone actually opens a node.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">Loading the organization…</p>;
@@ -65,12 +67,18 @@ export function OrganizationPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div
+          className={
+            drawerOpen
+              ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_400px]"
+              : "grid grid-cols-1 gap-6"
+          }
+        >
         <div className="flex flex-col gap-4">
           <div className="max-w-sm">
             <OrgSearch
               nodes={tree}
-              onPick={(node) => {
+              onPick={(node: OrgTreeNode) => {
                 setSelected(node);
                 setDrawerOpen(true);
               }}
@@ -78,7 +86,7 @@ export function OrganizationPage() {
           </div>
 
           <div className="rounded-lg border border-border p-4">
-            <OrgChart
+            <OrgTree
               nodes={tree}
               selectedId={selected?.id ?? null}
               onSelect={(node) => {
