@@ -56,11 +56,29 @@ export interface ActorScope {
  * A caller outside their scope gets 404 rather than 403, so the endpoint never
  * confirms that another office's scorecard exists.
  */
+/**
+ * Is this office inside the caller's authority -- meaning they are answerable
+ * for it, not merely that it belongs to them?
+ *
+ * Shared by the scorecard guard and the org detail panel because both ask the
+ * same question and previously answered it two different ways. When they
+ * drifted, an employee attached to the root office became FULL on the whole
+ * organization in one view and refused in the other.
+ */
+export function isOfficeInAuthority(scope: ActorScope, officeId: string | null): boolean {
+  if (!officeId) return false;
+  // A plain employee is not responsible for the office they sit in, so their
+  // subtree is not their authority. Anyone attached to the root office -- which
+  // is where unassigned staff land -- would otherwise cover everything.
+  if (scope.isEmployee) return scope.officeId === officeId;
+  return scope.officeScopeIds.includes(officeId);
+}
+
 export function canActOnScorecardOffice(scope: ActorScope, officeId: string | null): boolean {
   if (!officeId) return false;
   if (scope.isSuperAdmin) return true;
   if (scope.role === "IT_ADMIN") return false;
-  return scope.officeScopeIds.includes(officeId);
+  return isOfficeInAuthority(scope, officeId);
 }
 
 /** Offices whose scorecards this actor may act on. Null means unrestricted. */
@@ -68,6 +86,53 @@ export function scorecardOfficeIds(scope: ActorScope): string[] | null {
   if (scope.isSuperAdmin) return null;
   if (scope.role === "IT_ADMIN") return [NOTHING];
   return scope.officeScopeIds.length > 0 ? scope.officeScopeIds : [NOTHING];
+}
+
+/**
+ * How much of an organization node a caller may see.
+ *
+ * The chart itself is public: an employee seeing "MSD -> FMS -> AS -> GSU"
+ * learns nothing sensitive, because the shape of an org chart is not the data
+ * in it. The people behind the nodes, and the work those nodes do, are the
+ * sensitive part.
+ *
+ * So detail is layered rather than all-or-nothing:
+ *
+ *  - FULL   - head, managers, people, plans, progress, scorecard. Everyone
+ *             inside their own subtree, plus MAIN_ADMIN everywhere.
+ *  - PEOPLE - head, managers and people by name, but no plans, progress or
+ *             scorecard. The IT admin reads the whole roster and nothing about
+ *             reporting, which is the whole point of keeping that role outside
+ *             the tree.
+ *  - NAMES  - the node exists and is named, nothing more. What an employee sees
+ *             for an office outside their subtree.
+ */
+export type OrgDetailLevel = "FULL" | "PEOPLE" | "NAMES";
+
+export function orgNodeDetailLevel(scope: ActorScope, officeId: string | null): OrgDetailLevel {
+  if (!officeId) return "NAMES";
+
+  // The hierarchy head sees everything, everywhere.
+  if (scope.isSuperAdmin) return "FULL";
+
+  // The systems role is capped before the scope check, not after.
+  //
+  // The IT admin holds no headship, and its Employee row is attached to OVP --
+  // so `officeScopeIds` covers the whole tree. Testing scope first would hand
+  // it FULL everywhere, and with FULL comes plans, progress and scorecards:
+  // every office's reporting, to the one role that is deliberately kept outside
+  // the tree. The cap has to come first.
+  if (scope.role === "IT_ADMIN") return "PEOPLE";
+
+  if (isOfficeInAuthority(scope, officeId)) return "FULL";
+
+  // Outside your subtree the node is visible but its contents are not.
+  return "NAMES";
+}
+
+/** May this actor read the plan and progress attached to this node? */
+export function canSeeOfficeWork(scope: ActorScope, officeId: string | null): boolean {
+  return orgNodeDetailLevel(scope, officeId) === "FULL";
 }
 
 export async function resolveActor(userId: string, role: UserRole): Promise<ActorScope> {

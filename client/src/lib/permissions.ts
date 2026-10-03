@@ -73,6 +73,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   // the office list, the metric definitions, or finalize a scorecard.
   OFFICE_ADMIN: [
     "dashboard.view",
+    "offices.view",
     "plans.view",
     "performance.view",
     "monthlyUpdates.view",
@@ -88,6 +89,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   // reporting access.
   IT_ADMIN: [
     "dashboard.view",
+    "offices.view",
     "employees.view",
     "accounts.view",
     "notifications.view",
@@ -101,8 +103,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
   ],
 
   // Read-only on their own work. No configuration, no management.
+  // The organization chart is included: everyone can see the shape of the
+  // organization, and only their own node opens.
   EMPLOYEE: [
     "dashboard.view",
+    "offices.view",
     "plans.view",
     "performance.view",
     "access.view",

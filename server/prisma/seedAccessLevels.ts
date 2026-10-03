@@ -40,6 +40,8 @@ const TEST_PASSWORD = "Test@1234";
 const LEVELS: {
   email: string;
   name: string;
+  /** Person name as it appears on the org chart. */
+  person: string;
   role: "MAIN_ADMIN" | "OFFICE_ADMIN" | "IT_ADMIN" | "EMPLOYEE";
   level:
     | "HIERARCHY_HEAD"
@@ -48,16 +50,20 @@ const LEVELS: {
     | "SUB_UNIT_HEAD"
     | "EMPLOYEE";
   headsOfficeCode?: string;
+  /** Where this person is attached, when it is not the fallback office. */
+  attachedOfficeCode?: string;
 }[] = [
   {
     email: "main.admin@test.local",
     name: "Test Main Admin",
+    person: "Ana dela Cruz",
     role: "MAIN_ADMIN",
     level: "HIERARCHY_HEAD",
   },
   {
     email: "dept.head@test.local",
     name: "Test Department Head",
+    person: "Benito Ramos",
     role: "OFFICE_ADMIN",
     level: "DEPARTMENT_HEAD",
     headsOfficeCode: "MSD",
@@ -65,6 +71,7 @@ const LEVELS: {
   {
     email: "office.head@test.local",
     name: "Test Office Head",
+    person: "Celia Bautista",
     role: "OFFICE_ADMIN",
     level: "OFFICE_HEAD",
     headsOfficeCode: "AS",
@@ -72,6 +79,7 @@ const LEVELS: {
   {
     email: "subunit.head@test.local",
     name: "Test Sub-Unit Head",
+    person: "Dante Mercado",
     role: "OFFICE_ADMIN",
     level: "SUB_UNIT_HEAD",
     headsOfficeCode: "GSU",
@@ -79,16 +87,39 @@ const LEVELS: {
   {
     email: "it.admin@test.local",
     name: "Test IT Admin",
+    person: "Elena Villanueva",
     role: "IT_ADMIN",
     level: "EMPLOYEE",
   },
   {
     email: "employee@test.local",
     name: "Test Employee",
+    person: "Farid Aquino",
     role: "EMPLOYEE",
     level: "EMPLOYEE",
   },
+  {
+    // The awkward one, and deliberately so.
+    //
+    // It holds OFFICE_ADMIN but heads nothing, which is the case that separates
+    // "has the role" from "has the authority": its scope must be the one office
+    // it is attached to, not the whole tree. Pinned to a sub-unit rather than
+    // a scored office so it also has no office-level scorecard to reach.
+    email: "office.admin@test.local",
+    name: "Test Office Admin",
+    person: "Grace Villanueva",
+    role: "OFFICE_ADMIN",
+    level: "EMPLOYEE",
+    attachedOfficeCode: "GSU",
+  },
 ];
+
+/** Splits a display name into the first/last pair the Employee row stores. */
+function personName(full: string): { firstName: string; lastName: string } {
+  const parts = full.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
 
 async function main() {
   const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
@@ -113,24 +144,41 @@ async function main() {
       select: { id: true, officeId: true, headedOfficeId: true },
     });
 
+    const attachedOffice = spec.attachedOfficeCode
+      ? await prisma.office.findUnique({ where: { code: spec.attachedOfficeCode } })
+      : null;
+    const fallbackOffice = await prisma.office.findUnique({ where: { code: "OVP" } });
+    if (!fallbackOffice) {
+      console.warn("  skipped — OVP missing, run `npm run db:seed:org` first");
+      continue;
+    }
+    const homeOfficeId = attachedOffice?.id ?? fallbackOffice.id;
+
     if (!employee) {
       // Park unassigned accounts on the OVP so they exist as people; the
       // absence of headedOfficeId is what makes them a plain employee.
-      const fallbackOffice = await prisma.office.findUnique({ where: { code: "OVP" } });
-      if (!fallbackOffice) {
-        console.warn("  skipped — OVP missing, run `npm run db:seed:org` first");
-        continue;
-      }
       employee = await prisma.employee.create({
         data: {
           userId: user.id,
-          officeId: fallbackOffice.id,
-          firstName: spec.name.replace(/^Test /, ""),
-          lastName: spec.name.startsWith("Test") ? "Account" : spec.name,
+          officeId: homeOfficeId,
+          ...personName(spec.person),
           position: spec.level.replace(/_/g, " ").toLowerCase(),
           accessLevel: spec.level,
         },
         select: { id: true, officeId: true, headedOfficeId: true },
+      });
+    } else {
+      // Re-stamp an existing row rather than only creating it. Otherwise a name
+      // change in this file never reaches anyone who already ran the seed, and
+      // people stay attached to whichever office an earlier version of the
+      // fixture happened to use -- including archived throwaway offices.
+      await prisma.employee.update({
+        where: { id: employee.id },
+        data: {
+          ...personName(spec.person),
+          accessLevel: spec.level,
+          officeId: homeOfficeId,
+        },
       });
     }
 
@@ -144,9 +192,16 @@ async function main() {
         console.warn(`  ${spec.email}: office ${spec.headsOfficeCode} not found`);
         continue;
       }
+      // Attach them to the office they head, not just to the fallback office.
+      //
+      // `headedOfficeId` decides their access level, but `officeId` decides
+      // which office the person belongs to, and it is what "who works here"
+      // reads. Setting only the headship left every seeded head attached to the
+      // root, so every node in the org chart reported zero staff -- the panel
+      // looked broken while the access model worked fine.
       await prisma.employee.update({
         where: { id: employee.id },
-        data: { headedOfficeId: office.id, accessLevel: spec.level },
+        data: { headedOfficeId: office.id, officeId: office.id, accessLevel: spec.level },
       });
       console.log(
         `  ${spec.email.padEnd(28)} ${spec.level.padEnd(17)} heads ${office.name} (${office.kind})`,

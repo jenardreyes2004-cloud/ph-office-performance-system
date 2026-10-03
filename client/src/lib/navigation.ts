@@ -55,15 +55,14 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       {
         to: "/organization",
         label: "Organization",
-        description: "Departments, offices and sub-units",
+        description: "Offices, people and who heads what",
         anyOf: ["offices.view"],
       },
-      {
-        to: "/employees",
-        label: "People",
-        description: "The employee roster",
-        anyOf: ["employees.view"],
-      },
+      // People was a separate page and is now part of the organization chart.
+      // The roster lives inside the node that owns it, which is where people
+      // actually think about it -- "who works in MSD" rather than "row 40 of
+      // the roster". /employees redirects rather than 404ing so old links keep
+      // working; the IT administrator still manages the roster from here.
     ],
   },
   {
@@ -164,6 +163,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
  */
 export const ROUTE_REDIRECTS: readonly { from: string; to: string }[] = [
   { from: "/offices", to: "/organization" },
+  { from: "/employees", to: "/organization" },
   { from: "/plans", to: "/projects" },
   { from: "/plans/:id", to: "/projects/:id" },
   { from: "/reports", to: "/scorecards" },
