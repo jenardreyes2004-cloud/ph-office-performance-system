@@ -1,6 +1,6 @@
-import * as React from "react"
+import * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 function Checkbox({ className, ...props }: React.ComponentProps<"input">) {
   return (
@@ -12,11 +12,11 @@ function Checkbox({ className, ...props }: React.ComponentProps<"input">) {
         "accent-primary",
         "focus-visible:ring-2 focus-visible:ring-ring/50",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function CheckboxLabel({ className, ...props }: React.ComponentProps<"label">) {
@@ -26,7 +26,7 @@ function CheckboxLabel({ className, ...props }: React.ComponentProps<"label">) {
       className={cn("text-sm leading-none select-none", className)}
       {...props}
     />
-  )
+  );
 }
 
-export { Checkbox, CheckboxLabel }
+export { Checkbox, CheckboxLabel };

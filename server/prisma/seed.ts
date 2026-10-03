@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { assertSeedAllowedToRun } from "./seedGuard";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -133,6 +134,7 @@ async function main() {
   console.log("Test office:", office.code, "| Test plan:", plan.title);
 }
 
+assertSeedAllowedToRun();
 main()
   .catch((e) => {
     console.error(e);

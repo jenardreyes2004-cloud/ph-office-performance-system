@@ -21,6 +21,8 @@ export interface ActorScope {
   employeeId: string | null;
   /** The caller's own office, if they have an Employee row. */
   officeId: string | null;
+  /** The node they head, which is what their scope is measured from. */
+  headedOfficeId: string | null;
   /** Their office plus every office beneath it. Empty when they have no office. */
   officeScopeIds: string[];
   /** MAIN_ADMIN sees the whole system. */
@@ -33,19 +35,64 @@ export interface ActorScope {
   isEmployee: boolean;
 }
 
+/**
+ * May this actor read or change the scorecard belonging to `officeId`?
+ *
+ * Scorecards were the one place the scope model was not applied: the routes
+ * gated on role alone, so any OFFICE_ADMIN could create, edit, band, submit
+ * and finalize scorecards for *any* office in the system. That is precisely the
+ * bug the hierarchy exists to prevent, and the one place it was still
+ * reachable.
+ *
+ * Pure, so it is testable without a database, like the other scope helpers.
+ *
+ * - MAIN_ADMIN: every office. No argument for withholding the organization's
+ *   own results from the top of it.
+ * - IT_ADMIN: none. It holds a systems function -- accounts, database,
+ *   config -- and deliberately no reporting authority. A staff member who can
+ *   see office scorecards can read every office's performance.
+ * - everyone else: only offices inside their own subtree.
+ *
+ * A caller outside their scope gets 404 rather than 403, so the endpoint never
+ * confirms that another office's scorecard exists.
+ */
+export function canActOnScorecardOffice(scope: ActorScope, officeId: string | null): boolean {
+  if (!officeId) return false;
+  if (scope.isSuperAdmin) return true;
+  if (scope.role === "IT_ADMIN") return false;
+  return scope.officeScopeIds.includes(officeId);
+}
+
+/** Offices whose scorecards this actor may act on. Null means unrestricted. */
+export function scorecardOfficeIds(scope: ActorScope): string[] | null {
+  if (scope.isSuperAdmin) return null;
+  if (scope.role === "IT_ADMIN") return [NOTHING];
+  return scope.officeScopeIds.length > 0 ? scope.officeScopeIds : [NOTHING];
+}
+
 export async function resolveActor(userId: string, role: UserRole): Promise<ActorScope> {
   const employee = await prisma.employee.findUnique({
     where: { userId },
-    select: { id: true, officeId: true },
+    select: { id: true, officeId: true, headedOfficeId: true },
   });
 
-  const officeScopeIds = employee ? await descendantOfficeIds(employee.officeId) : [];
+  // The node they head wins over the office they are attached to.
+  //
+  // These were two different answers to the same question. `resolveAccess` in
+  // lib/access.ts has always preferred `headedOfficeId`; this one read only
+  // `officeId`. Seeded heads are attached to OVP while heading MSD, AS or GSU,
+  // so the difference was not theoretical: every node head's scope resolved to
+  // the whole 26-office tree, and every "cannot see outside your scope" check
+  // passed vacuously because there was no outside.
+  const scopeRoot = employee?.headedOfficeId ?? employee?.officeId ?? null;
+  const officeScopeIds = scopeRoot ? await descendantOfficeIds(scopeRoot) : [];
 
   return {
     userId,
     role,
     employeeId: employee?.id ?? null,
     officeId: employee?.officeId ?? null,
+    headedOfficeId: employee?.headedOfficeId ?? null,
     officeScopeIds,
     isSuperAdmin: role === "MAIN_ADMIN",
     seesWholeRoster: role === "MAIN_ADMIN" || role === "IT_ADMIN",

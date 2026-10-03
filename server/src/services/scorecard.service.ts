@@ -104,11 +104,11 @@ export const scorecardPeriodService = {
   // Offices are the scored units — the OVP and the offices that sit under no
   // department. Departments and sub-units are tracked for structure, plans and
   // employees, but the SPMS scorecard is not filled out for them.
-  async listOfficesForPeriod(periodId: string) {
+  async listOfficesForPeriod(periodId: string, officeIds: string[] | null = null) {
     await this.getById(periodId);
 
     const offices = await prisma.office.findMany({
-      where: { archivedAt: null, kind: "OFFICE" },
+      where: { archivedAt: null, kind: "OFFICE", ...(officeIds ? { id: { in: officeIds } } : {}) },
       orderBy: { name: "asc" },
       include: {
         _count: { select: { employees: true } },
@@ -384,3 +384,35 @@ export const scorecardResultService = {
     });
   },
 };
+
+/**
+ * Which office owns this scorecard or entry?
+ *
+ * The scorecard controllers gate on role, and role alone cannot say "is this
+ * *their* office?" -- so every entry point needs the owning office before it
+ * can decide whether the caller may act. Resolving it in one place keeps the
+ * controller from repeating the join and keeps the two id shapes
+ * (OfficeScorecard and ScorecardEntry) from drifting apart.
+ *
+ * Returns null when the id does not exist. The caller turns that into a 404.
+ */
+export async function owningOfficeIdFor(target: {
+  officeScorecardId?: string;
+  entryId?: string;
+}): Promise<string | null> {
+  if (target.entryId) {
+    const entry = await prisma.scorecardEntry.findUnique({
+      where: { id: target.entryId },
+      select: { officeScorecard: { select: { officeId: true } } },
+    });
+    return entry?.officeScorecard.officeId ?? null;
+  }
+  if (target.officeScorecardId) {
+    const card = await prisma.officeScorecard.findUnique({
+      where: { id: target.officeScorecardId },
+      select: { officeId: true },
+    });
+    return card?.officeId ?? null;
+  }
+  return null;
+}

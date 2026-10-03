@@ -221,11 +221,17 @@ export const accountService = {
   },
 
   /**
-   * Deactivating revokes access at the next request rather than invalidating a
-   * live session immediately. A JWT is self-contained, so the only way to kill
-   * one early is a server-side denylist -- which is a real decision (storage,
-   * expiry, growth) and not one to smuggle in with account management. Worth
-   * doing deliberately if instant revocation is required.
+   * Deactivation and reactivation.
+   *
+   * Access ends on the holder's *next* request, not when their token expires:
+   * `authenticate` re-reads the account row on every authenticated request and
+   * rejects an inactive one, so a disabled user is locked out immediately even
+   * though their JWT is still cryptographically valid. Role changes behave the
+   * same way, because the gate reads the role from the row rather than trusting
+   * the token's claim.
+   *
+   * What it does not do is destroy the cookie or cancel a request already being
+   * handled -- the caller simply starts receiving 401s.
    */
   async deactivate(actor: AccountActor, id: string) {
     return this.setActive(actor, id, { isActive: false });

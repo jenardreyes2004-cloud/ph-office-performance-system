@@ -172,7 +172,7 @@ export const officeService = {
       include: {
         employees: true,
         parent: { select: { id: true, name: true, code: true } },
-        children: { select: { id: true, name: true, code: true, isHeadOffice: true } },
+        children: { select: { id: true, name: true, code: true, kind: true } },
       },
     });
     if (!office) throw new AppError("Office not found", 404);

@@ -47,12 +47,60 @@ function safeKeys(value: unknown, depth = 0): Prisma.InputJsonValue {
 
 const MUTATING = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
-// First path segment after /api is the resource, e.g. "/api/plans/abc" -> "plans".
-function entityFromPath(path: string): string {
+/**`r`n * Entity name for a nested route.
+ *
+ * The first segment alone collapses every scorecard operation into
+ * "scorecards", so "who changed this entry?" and "who deleted that band?" were
+ * indistinguishable in the trail. The sub-resource is appended when the route
+ * addresses one: "/scorecards/entries/x" -> "scorecards/entries".
+ */
+function entityWithSubResource(path: string): string {
   const parts = path.split("/").filter(Boolean);
   const apiAt = parts.indexOf("api");
   const index = apiAt >= 0 ? apiAt + 1 : 0;
-  return parts[index] ?? "unknown";
+  const head = parts[index] ?? "unknown";
+  const next = parts[index + 1];
+  // A collection or an id -- not a sub-resource to disambiguate.
+  if (!next || next === "tree" || looksLikeId(next)) return head;
+  return `${head}/${next}`;
+}
+
+function looksLikeId(segment: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment);
+}
+
+/**
+ * The id a mutating request acted on, and its parent when the route is nested.
+ *
+ * Read from the URL path rather than `req.params`, and that is the whole fix:
+ * this middleware is mounted with `app.use("/api", auditLog)`, which runs
+ * *before* any router has matched, so `req.params` is still empty at this
+ * point. Every previous attempt to read an id param from here therefore read
+ * `undefined` and wrote null, on every route.
+ *
+ * A UUID-shaped segment is an id, and the path segment order matches the route
+ * order, so the last one is the record actually being modified and the one
+ * before it is its parent. That holds for every shape in the API, including
+ * `/scorecards/office-scorecards/:id/entries/:entryId` -> entity is the entry,
+ * parent is the scorecard.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function idContext(path: string): { entityId: string | null; parentId: string | null } {
+  const parts = path.split("/").filter(Boolean);
+  const apiAt = parts.indexOf("api");
+  const from = apiAt >= 0 ? apiAt + 1 : 0;
+
+  const ids: string[] = [];
+  for (const part of parts.slice(from)) {
+    if (UUID.test(part)) ids.push(part);
+  }
+
+  if (ids.length === 0) return { entityId: null, parentId: null };
+  return {
+    entityId: ids[ids.length - 1],
+    parentId: ids.length >= 2 ? ids[ids.length - 2] : null,
+  };
 }
 
 function actionFor(method: string, path: string, entity: string): string {
@@ -75,12 +123,6 @@ function actionFor(method: string, path: string, entity: string): string {
   }
 }
 
-function toId(value: string | string[] | undefined): string | null {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
-  return null;
-}
-
 export function auditLog(req: Request, res: Response, next: NextFunction) {
   if (!MUTATING.has(req.method)) return next();
 
@@ -89,8 +131,9 @@ export function auditLog(req: Request, res: Response, next: NextFunction) {
   // the route that ran.
   const method = req.method;
   const path = req.originalUrl.split("?")[0];
-  const entity = entityFromPath(path);
+  const entity = entityWithSubResource(path);
   const action = actionFor(method, path, entity);
+  const { entityId, parentId } = idContext(path);
 
   res.on("finish", () => {
     // Only successful changes are worth an audit row; a 4xx changed nothing.
@@ -107,11 +150,13 @@ export function auditLog(req: Request, res: Response, next: NextFunction) {
             userId: req.user?.userId ?? null,
             action,
             entity,
-            // Express 5 types a param as string | string[]; audit wants a scalar.
-            entityId: toId(req.params?.id ?? req.params?.periodId),
+            entityId,
             metadata: {
               status: res.statusCode,
               method,
+              // A nested route's parent id, so "everything under this
+              // scorecard" is answerable. An id, never a value.
+              ...(parentId ? { parentId } : {}),
               fields: safeKeys(req.body),
             },
           },
