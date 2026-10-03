@@ -22,5 +22,5 @@
   // The layout is still typechecked -- by the client build, which compiles
   // OrgGraph.tsx and therefore everything it pulls in. This file only has to
   // prove the geometry behaves.
-  "exclude": ["prisma/checkRadialLayout.ts"]
+  "exclude": ["prisma/checkRadialLayout.ts", "prisma/checkChartLayout.ts"]
 }

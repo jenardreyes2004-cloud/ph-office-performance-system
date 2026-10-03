@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { OrgTree } from "@/features/org/OrgTree";
+import { OrgChart } from "@/features/org/OrgChart";
 import { OrgNodeDrawer } from "@/features/org/OrgNodeDrawer";
 import { OrgSearch } from "@/features/org/OrgSearch";
 import { useOrgTree, type OrgTreeNode } from "@/features/org/hooks";
@@ -85,16 +85,14 @@ export function OrganizationPage() {
             />
           </div>
 
-          <div className="rounded-lg border border-border p-4">
-            <OrgTree
-              nodes={tree}
+                      <OrgChart
+              tree={tree}
               selectedId={selected?.id ?? null}
               onSelect={(node) => {
                 setSelected(node);
                 setDrawerOpen(true);
               }}
             />
-          </div>
         </div>
 
         {drawerOpen && (

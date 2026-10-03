@@ -1,201 +1,229 @@
-import { useState } from "react";
-import { ChevronRight, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Building2, Landmark, Maximize2, Minimize2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { OrgTreeNode } from "@/features/org/types";
+
+import { computeChartLayout, type ChartNode } from "@/features/org/chartLayout";
 import { cn } from "@/lib/utils";
+import type { OrgTreeNode } from "@/features/org/types";
 import type { OrgNodeKind } from "@/types";
 
-const KIND_LABEL: Record<OrgNodeKind, string> = {
-  DEPARTMENT: "Department",
-  OFFICE: "Office",
-  SUB_UNIT: "Sub-unit",
-};
-
-const KIND_TONE: Record<OrgNodeKind, "default" | "secondary" | "outline"> = {
-  DEPARTMENT: "default",
-  OFFICE: "secondary",
-  SUB_UNIT: "outline",
-};
-
 /**
- * The organization as a chart.
+ * The organization as an org chart: solid circles in rows, joined by elbows.
  *
- * Plain nested markup with CSS connector lines rather than a graph library or
- * canvas. The tree is three levels deep and about two dozen nodes, so the
- * layout is trivial -- and doing it in the DOM means it is keyboard reachable,
- * printable, and readable by a screen reader without any of that being
- * retrofitted later.
+ * Nodes are filled circles with the label underneath, because that is the form
+ * people already read as a hierarchy. The earlier list lost the node entirely,
+ * and the radial version kept the node but drew straight diagonals between
+ * centres -- which reads as a web, because the eye follows an elbow and does not
+ * follow a diagonal.
  *
- * Every node is a button. Selecting one opens the detail drawer; expanding is a
- * separate control so a keyboard user is not forced to open a node just to see
- * what is under it.
+ * Connectors are strictly horizontal and vertical. That is the whole point:
+ * a vertical drop says "descends from", a horizontal run says "sibling of", and
+ * the two together are unambiguous at a glance.
  */
-export function OrgChart({
-  nodes,
-  selectedId,
-  onSelect,
-  matchIds,
-}: {
-  nodes: OrgTreeNode[];
-  selectedId: string | null;
-  onSelect: (node: OrgTreeNode) => void;
-  /** Ids matching the current search, highlighted in the chart. */
-  matchIds?: Set<string>;
-}) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const toggle = (id: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+const KIND_COLOR: Record<OrgNodeKind, string> = {
+  DEPARTMENT: "hsl(215 72% 45%)",
+  OFFICE: "hsl(348 68% 46%)",
+  SUB_UNIT: "hsl(150 58% 40%)",
+};
 
-  return (
-    <ul className="flex flex-col">
-      {nodes.map((node) => (
-        <ChartNode
-          key={node.id}
-          node={node}
-          depth={0}
-          selectedId={selectedId}
-          onSelect={onSelect}
-          collapsed={collapsed}
-          toggle={toggle}
-          matchIds={matchIds}
-        />
-      ))}
-    </ul>
+/** The root is neutral, so it reads as the trunk rather than another branch. */
+const ROOT_COLOR = "hsl(215 15% 28%)";
+
+function Glyph({ kind }: { kind: OrgNodeKind }) {
+  return kind === "DEPARTMENT" ? (
+    <Landmark className="size-1/2" strokeWidth={2} />
+  ) : (
+    <Building2 className="size-1/2" strokeWidth={2} />
   );
 }
 
-function ChartNode({
-  node,
-  depth,
+export function OrgChart({
+  tree,
   selectedId,
   onSelect,
-  collapsed,
-  toggle,
-  matchIds,
 }: {
-  node: OrgTreeNode;
-  depth: number;
+  tree: OrgTreeNode[];
   selectedId: string | null;
   onSelect: (node: OrgTreeNode) => void;
-  collapsed: Set<string>;
-  toggle: (id: string) => void;
-  matchIds?: Set<string>;
 }) {
-  const hasChildren = (node.children?.length ?? 0) > 0;
-  const isCollapsed = collapsed.has(node.id);
-  const isSelected = selectedId === node.id;
-  const isMatch = matchIds?.has(node.id) ?? false;
+  const layout = computeChartLayout(tree);
+  const byId = new Map(flatten(tree).map((n) => [n.id, n]));
+
+  // Fit by default, enlarge on demand.
+  //
+  // The whole point of a chart is seeing the shape, so it has to be on screen
+  // whole. With the super admin's 26 nodes that means small labels at first --
+  // which is what "fit" is for, and why there is a zoom control rather than the
+  // alternative of scrolling around a two-thousand-pixel canvas to find the
+  // root. Everyone scoped to one branch sees it near 1:1 straight away.
+  const [fit, setFit] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Switching to the enlarged view has to centre the root, not merely scroll to
+  // the corner: the layout is centred on the root, which for the hierarchy
+  // head's 26 nodes sits well past the right edge of the panel, so scrolling to
+  // the origin shows the leftmost leaf instead.
+  //
+  // Deferred by a frame because the container is still fitted when the effect
+  // runs; scrolling then and resizing afterwards leaves the viewport wherever
+  // it happened to be, which is exactly the bug this replaces.
+  useEffect(() => {
+    if (fit) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const id = requestAnimationFrame(() => {
+      const root = layout.nodes.find((n) => n.depth === 0);
+      if (!root) return;
+      el.scrollLeft = Math.max(0, root.x - el.clientWidth / 2);
+      // A little headroom so the root circle is not clipped by the container edge.
+      el.scrollTop = 0;
+      void el;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [fit, layout.nodes]);
 
   return (
-    <li>
-      <div
-        className="relative flex items-stretch"
-        style={{ paddingLeft: depth === 0 ? 0 : 20 }}
-      >
-        {/* Connector line to the parent, drawn rather than typed as characters. */}
-        {depth > 0 && (
-          <>
-            <span
-              aria-hidden
-              className="absolute left-0 top-0 h-1/2 w-3 border-b border-l border-border"
-            />
-            <span aria-hidden className="absolute left-3 top-0 h-full border-l border-border" />
-          </>
-        )}
-
-        <div
-          className={cn(
-            "my-1 flex flex-1 items-center gap-3 rounded-md border p-2 transition-colors",
-            isSelected ? "border-primary bg-primary/5" : "border-border",
-            isMatch && !isSelected && "border-amber-500/60 bg-amber-500/5",
-          )}
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setFit((f) => !f)}
+          aria-pressed={!fit}
         >
-          {hasChildren ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 shrink-0 p-0"
-              aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${node.name}`}
-              aria-expanded={!isCollapsed}
-              onClick={() => toggle(node.id)}
-            >
-              <ChevronRight
-                className={cn("size-4 transition-transform", !isCollapsed && "rotate-90")}
-              />
-            </Button>
-          ) : (
-            <span className="w-6 shrink-0" aria-hidden />
-          )}
-
-          <button
-            type="button"
-            onClick={() => onSelect(node)}
-            aria-current={isSelected ? "true" : undefined}
-            className="flex min-w-0 flex-1 items-center gap-3 text-left"
-          >
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium">{node.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {node.code}
-              </span>
-            </span>
-
-            <Badge variant={KIND_TONE[node.kind]} className="shrink-0 text-[10px]">
-              {KIND_LABEL[node.kind]}
-            </Badge>
-
-            {node.employeeCount > 0 && (
-              <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                <Users className="size-3" />
-                {node.employeeCount}
-              </span>
-            )}
-
-            {/* Scored units carry their own Balanced Scorecard; departments and
-                sub-units roll up into the office above them. */}
-            {node.isScored && node.scorecard && (
-              <span className="ml-auto shrink-0">
-                <Badge variant="outline" className="text-[10px]">
-                  {node.scorecard.officeRating ?? node.scorecard.status}
-                </Badge>
-              </span>
-            )}
-          </button>
-        </div>
+          {fit ? <Maximize2 className="size-4" /> : <Minimize2 className="size-4" />}
+          {fit ? "Read labels" : "Fit to view"}
+        </Button>
       </div>
 
-      {hasChildren && !isCollapsed && (
-        <ul className="flex flex-col">
-          {node.children!.map((child) => (
-            <ChartNode
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              selectedId={selectedId}
+      <div
+        ref={scrollRef}
+        className="max-h-[70vh] overflow-auto rounded-lg border border-border bg-background p-4"
+      >
+        <svg
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          style={
+            fit
+              ? { width: "100%", height: "auto", display: "block" }
+              : { width: layout.width, height: layout.height, display: "block" }
+          }
+          role="tree"
+          aria-label="Organization hierarchy"
+          className="mx-auto"
+        >
+        {/* Connectors behind the nodes, so a line never crosses a circle. */}
+        <g fill="none" stroke="hsl(var(--border))" strokeWidth={1.5}>
+          {layout.connectors.map((d, i) => (
+            <path key={i} d={d} />
+          ))}
+        </g>
+
+        <g>
+          {layout.nodes.map((n) => (
+            <ChartNodeView
+              key={n.id}
+              node={n}
+              treeNode={byId.get(n.id)}
+              selected={selectedId === n.id}
               onSelect={onSelect}
-              collapsed={collapsed}
-              toggle={toggle}
-              matchIds={matchIds}
             />
           ))}
-        </ul>
-      )}
-    </li>
+        </g>
+      </svg>
+      </div>
+    </div>
   );
 }
 
-/**
- * Search across offices and people.
- *
- * Losing the People page means losing the flat roster list, so this has to
- * stand in for it: matching a name has to be able to point at the node that
- * person sits under, not just at the office they head.
- */
+function ChartNodeView({
+  node,
+  treeNode,
+  selected,
+  onSelect,
+}: {
+  node: ChartNode;
+  treeNode: OrgTreeNode | undefined;
+  selected: boolean;
+  onSelect: (node: OrgTreeNode) => void;
+}) {
+  if (!treeNode) return null;
+  const r = node.radius;
+  const isRoot = node.depth === 0;
+  const fill = isRoot ? ROOT_COLOR : KIND_COLOR[node.kind];
+  // Room for the name and the two lines beneath it, centred under the circle.
+  const labelY = r + 20;
+
+  return (
+    <g>
+      {/* The button is a circle the size of the node so the whole hit area is
+          the node, not a bounding box around the label. */}
+      <circle
+        cx={node.x}
+        cy={node.y}
+        r={r}
+        fill={fill}
+        stroke={selected ? "hsl(var(--foreground))" : "transparent"}
+        strokeWidth={3}
+        className="transition-[stroke]"
+      />
+      <foreignObject x={node.x - r} y={node.y - r} width={r * 2} height={r * 2}>
+        <button
+          type="button"
+          aria-label={`${treeNode.name}, ${treeNode.kind.replace("_", " ").toLowerCase()}`}
+          aria-current={selected ? "true" : undefined}
+          onClick={() => onSelect(treeNode)}
+          className="flex size-full items-center justify-center rounded-full text-white"
+        >
+          <Glyph kind={node.kind} />
+        </button>
+      </foreignObject>
+
+      <text
+        x={node.x}
+        y={node.y + labelY}
+        textAnchor="middle"
+        className={cn(
+          "fill-foreground text-[13px] font-semibold",
+          selected && "fill-primary",
+        )}
+      >
+        {truncate(treeNode.name, 24)}
+      </text>
+      <text x={node.x} y={node.y + labelY + 15} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+        {treeNode.code}
+      </text>
+      <text x={node.x} y={node.y + labelY + 29} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+        {describe(treeNode)}
+      </text>
+    </g>
+  );
+}
+
+/** One short line of context per node, rather than a wall of numbers. */
+function describe(node: OrgTreeNode): string {
+  const branches = node.children?.length ?? 0;
+  const people = node.totalEmployeeCount;
+  const bits: string[] = [];
+  if (branches > 0) bits.push(`${branches} branch${branches === 1 ? "" : "es"}`);
+  if (people > 0) bits.push(`${people} ${people === 1 ? "person" : "people"}`);
+  if (bits.length === 0) return node.kind.replace("_", " ").toLowerCase();
+  return bits.join(" · ");
+}
+
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+function flatten(nodes: OrgTreeNode[]): OrgTreeNode[] {
+  const out: OrgTreeNode[] = [];
+  const walk = (list: OrgTreeNode[]) => {
+    for (const n of list) {
+      out.push(n);
+      if (n.children?.length) walk(n.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
